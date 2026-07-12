@@ -238,6 +238,11 @@
   overflow: hidden;
 }
 
+@utility cv-auto {
+  content-visibility: auto;
+  contain-intrinsic-size: auto 720px;
+}
+
 @utility gradient-underline {
   position: relative;
   &::after {

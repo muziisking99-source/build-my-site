@@ -30,6 +30,46 @@ export function MotionLayer(props: SectionRefs) {
   );
 }
 
+/** Lightweight CSS-only backdrop for mobile / reduced-motion / save-data. */
+export function MotionBackdrop() {
+  return (
+    <div
+      aria-hidden
+      className="pointer-events-none fixed inset-0 z-0 overflow-hidden"
+      style={{ contain: "strict" }}
+    >
+      <MotionBackdropLayers />
+    </div>
+  );
+}
+
+function MotionBackdropLayers() {
+  return (
+    <>
+      <div
+        className="absolute inset-0"
+        style={{
+          background:
+            "radial-gradient(ellipse 65% 55% at 62% 40%, rgba(255,255,255,0.5) 0%, transparent 70%)",
+        }}
+      />
+      <div
+        className="absolute inset-0"
+        style={{
+          background: [
+            "radial-gradient(circle at 1px 1px, rgba(0,120,168,0.07) 1px, transparent 1.35px) 0 0 / 22px 22px",
+            "radial-gradient(circle at 1px 1px, rgba(104,184,72,0.055) 1px, transparent 1.35px) 11px 11px / 22px 22px",
+          ].join(", "),
+          maskImage:
+            "radial-gradient(ellipse 68% 62% at 60% 40%, black 25%, transparent 75%)",
+          WebkitMaskImage:
+            "radial-gradient(ellipse 68% 62% at 60% 40%, black 25%, transparent 75%)",
+        }}
+      />
+    </>
+  );
+}
+
 class MotionErrorBoundary extends Component<
   { children: ReactNode },
   { failed: boolean }
@@ -68,6 +108,9 @@ function MotionLayerInner({ heroRef, sheetsRef, workRef }: SectionRefs) {
 
   const bookOpacity = useTransform(heroProgress, [0, 0.6, 0.9, 1], [1, 1, 0.15, 0]);
   const bookY = useTransform(heroProgress, [0, 1], [0, -40]);
+  const bookVisibility = useTransform(bookOpacity, (v) =>
+    v < 0.02 ? "hidden" : "visible",
+  );
 
   // Open while hero is on screen: -65° → -12° / 65° → 12°
   const leftRot = useTransform(heroProgress, (v: number) => {
@@ -86,6 +129,9 @@ function MotionLayerInner({ heroRef, sheetsRef, workRef }: SectionRefs) {
   );
   const sheetsY = useTransform(sheetsProgress, [0.15, 0.85], [36, -56]);
   const sheetsRot = useTransform(sheetsProgress, [0.15, 0.85], [4, -8]);
+  const sheetsVisibility = useTransform(sheetsOpacity, (v) =>
+    v < 0.02 ? "hidden" : "visible",
+  );
 
   const bindOpacity = useTransform(
     workProgress,
@@ -94,32 +140,17 @@ function MotionLayerInner({ heroRef, sheetsRef, workRef }: SectionRefs) {
   );
   const bindY = useTransform(workProgress, [0.2, 0.85], [28, -36]);
   const bindRot = useTransform(workProgress, [0.2, 0.85], [-6, 10]);
+  const bindVisibility = useTransform(bindOpacity, (v) =>
+    v < 0.02 ? "hidden" : "visible",
+  );
 
   return (
     <div
       aria-hidden
       className="pointer-events-none fixed inset-0 z-0 overflow-hidden"
+      style={{ contain: "strict" }}
     >
-      <div
-        className="absolute inset-0"
-        style={{
-          background:
-            "radial-gradient(ellipse 65% 55% at 62% 40%, rgba(255,255,255,0.5) 0%, transparent 70%)",
-        }}
-      />
-      <div
-        className="absolute inset-0"
-        style={{
-          background: [
-            "radial-gradient(circle at 1px 1px, rgba(0,120,168,0.07) 1px, transparent 1.35px) 0 0 / 22px 22px",
-            "radial-gradient(circle at 1px 1px, rgba(104,184,72,0.055) 1px, transparent 1.35px) 11px 11px / 22px 22px",
-          ].join(", "),
-          maskImage:
-            "radial-gradient(ellipse 68% 62% at 60% 40%, black 25%, transparent 75%)",
-          WebkitMaskImage:
-            "radial-gradient(ellipse 68% 62% at 60% 40%, black 25%, transparent 75%)",
-        }}
-      />
+      <MotionBackdropLayers />
 
       <div
         className="absolute inset-0"
@@ -128,7 +159,11 @@ function MotionLayerInner({ heroRef, sheetsRef, workRef }: SectionRefs) {
         {/* BOOK — locked to the right half so it never covers hero copy */}
         <motion.div
           className="absolute top-[18vh] left-[52%] right-0 flex justify-center md:top-[14vh] lg:top-[12vh]"
-          style={{ opacity: bookOpacity, y: reduce ? 0 : bookY }}
+          style={{
+            opacity: bookOpacity,
+            y: reduce ? 0 : bookY,
+            visibility: bookVisibility,
+          }}
         >
           <div className="origin-top scale-[0.55] sm:scale-[0.7] md:scale-[0.85] lg:scale-100">
             <Notebook leftRot={leftRot} rightRot={rightRot} />
@@ -141,6 +176,7 @@ function MotionLayerInner({ heroRef, sheetsRef, workRef }: SectionRefs) {
           style={{
             opacity: sheetsOpacity,
             y: reduce ? 0 : sheetsY,
+            visibility: sheetsVisibility,
           }}
         >
           <div className="origin-center scale-[0.85] md:scale-[1] lg:scale-[1.15]">
@@ -158,6 +194,7 @@ function MotionLayerInner({ heroRef, sheetsRef, workRef }: SectionRefs) {
           style={{
             opacity: bindOpacity,
             y: reduce ? 0 : bindY,
+            visibility: bindVisibility,
           }}
         >
           <div className="origin-center scale-[0.9] md:scale-[1.05] lg:scale-[1.2]">
