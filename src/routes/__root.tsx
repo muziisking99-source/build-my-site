@@ -77,11 +77,19 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
     meta: [
       { charSet: "utf-8" },
       { name: "viewport", content: "width=device-width, initial-scale=1" },
-      { title: "Alpine-Eco Notebooks & Diaries — Printing & Book-Binding" },
-      { name: "description", content: "Alpine-Eco is a South African printing and book-binding company. We manufacture notebooks, diaries and journals in-house — from press to spine." },
-      { name: "author", content: "Alpine-Eco" },
-      { property: "og:title", content: "Alpine-Eco Notebooks & Diaries" },
-      { property: "og:description", content: "A printing and book-binding company. Notebooks, diaries and journals manufactured in-house in South Africa." },
+      { title: "Alpine-eco Notebooks & Diaries — Printing & Book-Binding" },
+      {
+        name: "description",
+        content:
+          "Alpine-eco is a Johannesburg printing and book-binding company. Notebooks, diaries and journals printed and bound in-house in Stafford — from press to spine.",
+      },
+      { name: "author", content: "Alpine-eco" },
+      { property: "og:title", content: "Alpine-eco Notebooks & Diaries" },
+      {
+        property: "og:description",
+        content:
+          "Printing and book-binding in Johannesburg. Notebooks, diaries and journals manufactured in-house.",
+      },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary_large_image" },
     ],

@@ -1,30 +1,42 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { motion } from "framer-motion";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { MotionLayer } from "@/components/MotionLayer";
 
 export const Route = createFileRoute("/")({
   component: Index,
 });
 
+const EMAIL = "info@alpine-eco.co.za";
+const PHONE_DISPLAY = "011 493 0113";
+const PHONE_TEL = "+27114930113";
+const ADDRESS = "22 Stevens Rd, Stafford, Johannesburg, 2197, South Africa";
+
 const scrollTo = (id: string) => {
   const el = document.getElementById(id);
   if (el) el.scrollIntoView({ behavior: "smooth", block: "start" });
 };
 
+/** Official light-background logo mark. */
 function Logo({ className = "" }: { className?: string }) {
   return (
-    <div className={`flex items-center gap-2 ${className}`}>
-      <svg width="28" height="28" viewBox="0 0 40 40" aria-hidden>
-        <path d="M6 28 Q20 10 34 28" stroke="#1B3FBE" strokeWidth="2" fill="none" strokeLinecap="round" />
-        <rect x="10" y="24" width="20" height="10" rx="1" fill="#1B3FBE" />
-        <line x1="20" y1="24" x2="20" y2="34" stroke="#F4F7F2" strokeWidth="1" />
-        <circle cx="20" cy="14" r="2" fill="#1E9E5E" />
-      </svg>
-      <span className="font-serif text-[19px] leading-none tracking-tight text-[color:var(--color-ink)]">
-        Alpine-<span className="italic text-[color:var(--color-eco-deep)]">eco</span>
-      </span>
-    </div>
+    <a
+      href="#hero"
+      onClick={(e) => {
+        e.preventDefault();
+        scrollTo("hero");
+      }}
+      className={`inline-flex items-center ${className}`}
+      aria-label="Alpine-eco Notebooks & Diaries — home"
+    >
+      <img
+        src="/alpine-eco-logo.png"
+        alt="Alpine-eco Notebooks & Diaries"
+        className="h-11 w-auto object-contain md:h-12"
+        width={200}
+        height={48}
+      />
+    </a>
   );
 }
 
@@ -46,11 +58,11 @@ function Nav() {
     <header
       className={`fixed top-0 left-0 right-0 z-50 transition-all duration-300 ${
         scrolled
-          ? "bg-white/80 backdrop-blur-sm shadow-[0_1px_0_rgba(27,63,190,0.08)]"
+          ? "bg-white/85 backdrop-blur-sm shadow-[0_1px_0_rgba(0,120,168,0.1)]"
           : "bg-transparent"
       }`}
     >
-      <div className="mx-auto flex max-w-7xl items-center justify-between px-6 py-4 lg:px-10">
+      <div className="mx-auto flex max-w-7xl items-center justify-between px-6 py-3 lg:px-10">
         <Logo />
         <nav className="hidden items-center gap-8 md:flex">
           {links.map(([id, label]) => (
@@ -84,16 +96,20 @@ function Eyebrow({ children }: { children: React.ReactNode }) {
   return <div className="eyebrow">{children}</div>;
 }
 
-function Hero() {
+function Hero({ sectionRef }: { sectionRef: React.RefObject<HTMLElement | null> }) {
   return (
-    <section className="relative overflow-hidden pt-40 pb-32 lg:pt-52 lg:pb-40">
-      {/* diagonal off-white panel */}
+    <section
+      ref={sectionRef}
+      id="hero"
+      className="relative overflow-hidden bg-transparent pt-40 pb-32 lg:pt-52 lg:pb-40"
+    >
       <div
         aria-hidden
         className="absolute inset-y-0 right-0 hidden md:block"
         style={{
           width: "52%",
-          background: "var(--color-cream)",
+          background:
+            "linear-gradient(105deg, rgba(243,247,248,0.04) 0%, rgba(243,247,248,0.16) 48%, rgba(243,247,248,0.32) 100%)",
           clipPath: "polygon(18% 0, 100% 0, 100% 100%, 4% 100%)",
         }}
       />
@@ -105,7 +121,7 @@ function Hero() {
           className="lg:col-span-7"
         >
           <motion.div variants={fadeUp}>
-            <Eyebrow>Alpine-Eco Notebooks &amp; Diaries</Eyebrow>
+            <Eyebrow>Alpine-eco · Printing &amp; Book-Binding</Eyebrow>
           </motion.div>
           <motion.h1
             variants={fadeUp}
@@ -118,9 +134,9 @@ function Hero() {
             variants={fadeUp}
             className="mt-8 max-w-xl text-[17px] leading-relaxed text-[color:var(--color-body)]"
           >
-            Alpine-Eco is a printing and book-binding company. We manufacture notebooks
-            and diaries in-house, from the first printed sheet to the finished, bound
-            cover.
+            Alpine-eco is a Johannesburg printing and book-binding company. We print,
+            cut and bind notebooks, diaries and journals in-house — one roof, one
+            standard of finish.
           </motion.p>
           <motion.div variants={fadeUp} className="mt-10 flex flex-wrap gap-3">
             <button onClick={() => scrollTo("print")} className="btn-primary">
@@ -140,13 +156,19 @@ function Section({
   id,
   children,
   className = "",
+  sectionRef,
 }: {
   id: string;
   children: React.ReactNode;
   className?: string;
+  sectionRef?: React.RefObject<HTMLElement | null>;
 }) {
   return (
-    <section id={id} className={`relative py-28 lg:py-36 ${className}`}>
+    <section
+      ref={sectionRef}
+      id={id}
+      className={`relative py-28 lg:py-36 ${className}`}
+    >
       <div className="mx-auto max-w-7xl px-6 lg:px-10">{children}</div>
     </section>
   );
@@ -165,9 +187,9 @@ function Story() {
         >
           <Eyebrow>Our Story</Eyebrow>
           <h2 className="mt-6 font-serif text-4xl leading-[1.1] tracking-tight md:text-5xl lg:text-[56px]">
-            A print shop,{" "}
-            <span className="italic text-[color:var(--color-royal)]">first</span> and
-            foremost.
+            A print shop and{" "}
+            <span className="italic text-[color:var(--color-royal)]">bindery</span>,
+            under one roof.
           </h2>
         </motion.div>
         <motion.div
@@ -181,26 +203,27 @@ function Story() {
             variants={fadeUp}
             className="text-[17px] leading-relaxed text-[color:var(--color-body)]"
           >
-            Alpine-Eco is a printing and book-binding company. We manufacture
-            notebooks, diaries and journals in-house — printed on our own presses, cut,
-            and bound under one roof.
+            Based in Stafford, Johannesburg, Alpine-eco runs the press and the bindery
+            ourselves. Notebooks, diaries and journals are printed, trimmed and bound
+            on site — not assembled from outsourced parts.
           </motion.p>
           <motion.p
             variants={fadeUp}
             className="mt-5 text-[17px] leading-relaxed text-[color:var(--color-body)]"
           >
-            That's the whole business: precision printing and proper binding, done at
-            scale, for brands and individuals who need it done right.
+            That is the whole business: accurate colour, clean finishing, and binding
+            that holds up to real use — for offices, schools, studios and private
+            orders across South Africa.
           </motion.p>
           <motion.ul variants={fadeUp} className="mt-10 space-y-4">
             {[
-              "Printed and bound entirely in-house, start to finish",
-              "Every run checked by hand before it ships",
-              "Trusted by offices, schools and studios across South Africa",
+              "Litho and digital printing, run in-house",
+              "Binding and finishing completed under one roof",
+              "Hand-checked before every delivery leaves Stafford",
             ].map((t) => (
               <li
                 key={t}
-                className="flex items-start gap-3 border-t border-[rgba(27,63,190,0.13)] pt-4 text-[15px] text-[color:var(--color-ink-2)]"
+                className="flex items-start gap-3 border-t border-[rgba(0,120,168,0.14)] pt-4 text-[15px] text-[color:var(--color-ink-2)]"
               >
                 <span className="mt-2 h-[6px] w-[6px] flex-none rounded-full bg-[color:var(--color-eco)]" />
                 <span>{t}</span>
@@ -215,10 +238,22 @@ function Story() {
 
 function WhatWePrint() {
   const items = [
-    ["Notebooks", "Soft and hard cover, ruled or dot-grid, sized for a desk drawer or a bag."],
-    ["Diaries", "Daily and weekly planners with dated pages, built for a year of real use."],
-    ["Journals", "Unlined pages for the people who think better with a pen in hand."],
-    ["Corporate & Custom", "Branded diaries and notebooks for teams, clients and year-end gifting."],
+    [
+      "Notebooks",
+      "Soft and hard cover, ruled or dot-grid — sized for a desk, a bag, or a branded run.",
+    ],
+    [
+      "Diaries",
+      "Daily and weekly planners with dated pages, printed and bound for a full year of use.",
+    ],
+    [
+      "Journals",
+      "Unlined and lightly ruled pages for notes, sketches and long-form writing.",
+    ],
+    [
+      "Corporate & Custom",
+      "Branded diaries and notebooks for teams, clients, schools and year-end gifting.",
+    ],
   ] as const;
   return (
     <Section id="print">
@@ -236,14 +271,14 @@ function WhatWePrint() {
           variants={fadeUp}
           className="mt-6 font-serif text-4xl leading-[1.1] tracking-tight md:text-5xl lg:text-[56px]"
         >
-          Notebooks, diaries — and anything in between.
+          Notebooks, diaries — printed and bound to order.
         </motion.h2>
         <motion.p
           variants={fadeUp}
           className="mt-6 max-w-2xl text-[17px] leading-relaxed text-[color:var(--color-body)]"
         >
-          We manufacture paper goods across four areas — from a single notebook to a
-          branded print run for an entire office.
+          From a short personal run to a full office order, we manufacture paper goods
+          across four areas — printed and bound in Johannesburg.
         </motion.p>
       </motion.div>
       <motion.div
@@ -260,7 +295,7 @@ function WhatWePrint() {
             className="card-surface gradient-underline p-7 transition-transform duration-300 hover:-translate-y-1"
           >
             <div className="text-[11px] font-medium uppercase tracking-[0.16em] text-[color:var(--color-eco-deep)]">
-              Alpine-Eco
+              Alpine-eco
             </div>
             <h3 className="mt-6 font-serif text-[26px] leading-tight tracking-tight text-[color:var(--color-ink)]">
               {title}
@@ -275,15 +310,35 @@ function WhatWePrint() {
   );
 }
 
-function HowWeWork() {
+function HowWeWork({
+  sectionRef,
+}: {
+  sectionRef: React.RefObject<HTMLElement | null>;
+}) {
   const steps = [
-    ["01", "Print", "Litho and digital printing, run in-house for full control over quality and colour."],
-    ["02", "Cut", "Every sheet trimmed and squared to size before it goes anywhere near a binder."],
-    ["03", "Bind", "Perfect, saddle-stitch or casebound — whatever the job calls for."],
-    ["04", "Finish & Check", "Every run checked by hand before it ships — no shortcuts, no guesswork."],
+    [
+      "01",
+      "Print",
+      "Litho and digital printing in-house — colour, registration and stock under our control.",
+    ],
+    [
+      "02",
+      "Cut",
+      "Every sheet trimmed and squared before it moves to the bindery.",
+    ],
+    [
+      "03",
+      "Bind",
+      "Perfect, saddle-stitch or casebound — matched to the job, not a one-size process.",
+    ],
+    [
+      "04",
+      "Finish & Check",
+      "Covers, finishing and a final hand check before anything ships.",
+    ],
   ] as const;
   return (
-    <Section id="work" className="bg-[color:var(--color-cream)]/50">
+    <Section id="work" className="bg-[color:var(--color-cream)]/50" sectionRef={sectionRef}>
       <div className="grid gap-16 lg:grid-cols-12">
         <motion.div
           initial={{ opacity: 0, y: 8 }}
@@ -293,7 +348,7 @@ function HowWeWork() {
           className="lg:col-span-5"
         >
           <Eyebrow>How We Work</Eyebrow>
-          <h2 className="mt-6 font-serif text-4xl leading-[1.1] tracking-tight md:text-5xl lg:text-[56px]">
+          <h2 className="mt-6 max-w-md font-serif text-4xl leading-[1.1] tracking-tight md:text-5xl lg:text-[56px]">
             From plates to pages, bound by hand.
           </h2>
         </motion.div>
@@ -304,9 +359,9 @@ function HowWeWork() {
           transition={{ duration: 0.6, delay: 0.1 }}
           className="text-[17px] leading-relaxed text-[color:var(--color-body)] lg:col-span-6 lg:col-start-7"
         >
-          Alpine-Eco isn't just a notebook brand — we run the press and the bindery
-          ourselves. That means tighter quality control, faster turnaround, and the
-          flexibility to do genuinely custom runs.
+          We are not a reseller of imported stock. Alpine-eco runs the press and the
+          bindery — which means tighter quality control, clearer turnaround, and the
+          flexibility to take on genuine custom work.
         </motion.p>
       </div>
 
@@ -330,7 +385,7 @@ function HowWeWork() {
             >
               <div
                 aria-hidden
-                className="mx-auto mb-6 hidden h-3 w-3 rounded-full border border-[rgba(27,63,190,0.4)] bg-white lg:block"
+                className="mx-auto mb-6 hidden h-3 w-3 rounded-full border border-[rgba(0,120,168,0.4)] bg-white lg:block"
                 style={{ marginLeft: 0 }}
               />
               <div className="text-[11px] font-medium uppercase tracking-[0.16em] text-[color:var(--color-royal)]">
@@ -374,14 +429,23 @@ function CTA() {
           variants={fadeUp}
           className="mt-6 text-[17px] leading-relaxed text-[color:var(--color-body)]"
         >
-          Get in touch for stockist information, bulk orders or a custom print and
-          binding quote.
+          Enquire for bulk orders, corporate runs or a custom print and binding quote.
+          We are based in Stafford, Johannesburg.
         </motion.p>
-        <motion.div variants={fadeUp} className="mt-10">
-          <a href="mailto:hello@alpine-eco.co.za" className="btn-primary">
-            Contact Alpine-Eco
+        <motion.div variants={fadeUp} className="mt-10 flex flex-wrap justify-center gap-3">
+          <a href={`mailto:${EMAIL}`} className="btn-primary">
+            Email Alpine-eco
+          </a>
+          <a href={`tel:${PHONE_TEL}`} className="btn-ghost">
+            Call {PHONE_DISPLAY}
           </a>
         </motion.div>
+        <motion.p
+          variants={fadeUp}
+          className="mt-8 text-[13px] leading-relaxed text-[color:var(--color-body)]"
+        >
+          {ADDRESS}
+        </motion.p>
       </motion.div>
     </Section>
   );
@@ -389,13 +453,13 @@ function CTA() {
 
 function Footer() {
   return (
-    <footer className="border-t border-[rgba(27,63,190,0.13)] bg-white/70 py-16">
+    <footer className="border-t border-[rgba(0,120,168,0.14)] bg-white/70 py-16">
       <div className="mx-auto grid max-w-7xl gap-12 px-6 lg:grid-cols-12 lg:px-10">
         <div className="lg:col-span-5">
           <Logo />
           <p className="mt-5 max-w-sm text-[14px] leading-relaxed text-[color:var(--color-body)]">
-            A printing and book-binding company — we manufacture notebooks and diaries
-            in-house, from press to spine.
+            A Johannesburg printing and book-binding company — notebooks, diaries and
+            journals manufactured in-house, from press to spine.
           </p>
         </div>
         <div className="lg:col-span-3 lg:col-start-7">
@@ -405,6 +469,7 @@ function Footer() {
               ["story", "Story"],
               ["print", "What We Print"],
               ["work", "How We Work"],
+              ["contact", "Contact"],
             ].map(([id, label]) => (
               <li key={id}>
                 <button
@@ -422,18 +487,26 @@ function Footer() {
           <ul className="mt-5 space-y-3 text-[14px] text-[color:var(--color-ink-2)]">
             <li>
               <a
-                href="mailto:hello@alpine-eco.co.za"
+                href={`mailto:${EMAIL}`}
                 className="transition-colors hover:text-[color:var(--color-royal)]"
               >
-                hello@alpine-eco.co.za
+                {EMAIL}
               </a>
             </li>
-            <li className="text-[color:var(--color-body)]">Stockists &amp; bulk orders</li>
+            <li>
+              <a
+                href={`tel:${PHONE_TEL}`}
+                className="transition-colors hover:text-[color:var(--color-royal)]"
+              >
+                {PHONE_DISPLAY}
+              </a>
+            </li>
+            <li className="text-[color:var(--color-body)] leading-relaxed">{ADDRESS}</li>
           </ul>
         </div>
       </div>
-      <div className="mx-auto mt-12 flex max-w-7xl flex-col items-start justify-between gap-3 border-t border-[rgba(27,63,190,0.10)] px-6 pt-6 text-[12px] text-[color:var(--color-body)] sm:flex-row sm:items-center lg:px-10">
-        <div>© {new Date().getFullYear()} Alpine-Eco Notebooks &amp; Diaries</div>
+      <div className="mx-auto mt-12 flex max-w-7xl flex-col items-start justify-between gap-3 border-t border-[rgba(0,120,168,0.10)] px-6 pt-6 text-[12px] text-[color:var(--color-body)] sm:flex-row sm:items-center lg:px-10">
+        <div>© {new Date().getFullYear()} Alpine-eco Notebooks &amp; Diaries</div>
         <div>Made in South Africa</div>
       </div>
     </footer>
@@ -441,18 +514,30 @@ function Footer() {
 }
 
 function Index() {
+  const heroRef = useRef<HTMLElement | null>(null);
+  const sheetsRef = useRef<HTMLDivElement | null>(null);
+  const workRef = useRef<HTMLElement | null>(null);
+
   return (
-    <div className="relative min-h-screen bg-white">
-      <MotionLayer />
-      <Nav />
-      <main>
-        <Hero />
-        <Story />
-        <WhatWePrint />
-        <HowWeWork />
-        <CTA />
-      </main>
-      <Footer />
-    </div>
+    <>
+      <MotionLayer
+        heroRef={heroRef}
+        sheetsRef={sheetsRef as React.RefObject<HTMLElement | null>}
+        workRef={workRef}
+      />
+      <div className="relative z-20 isolate min-h-[100dvh] bg-transparent">
+        <Nav />
+        <main>
+          <Hero sectionRef={heroRef} />
+          <div ref={sheetsRef}>
+            <Story />
+            <WhatWePrint />
+          </div>
+          <HowWeWork sectionRef={workRef} />
+          <CTA />
+        </main>
+        <Footer />
+      </div>
+    </>
   );
 }

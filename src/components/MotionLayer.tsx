@@ -1,222 +1,870 @@
-import { motion, useReducedMotion, useScroll, useTransform } from "framer-motion";
+import {
+  Component,
+  type ErrorInfo,
+  type ReactNode,
+  type RefObject,
+} from "react";
+import {
+  motion,
+  useReducedMotion,
+  useScroll,
+  useTransform,
+  type MotionValue,
+} from "framer-motion";
+
+type SectionRefs = {
+  heroRef: RefObject<HTMLElement | null>;
+  sheetsRef: RefObject<HTMLElement | null>;
+  workRef: RefObject<HTMLElement | null>;
+};
 
 /**
- * Fixed full-viewport scroll-driven CSS-3D motion layer.
- * Three objects cross-fade based on document scroll progress:
- *   0.00 - 0.28  Book (hero)
- *   0.22 - 0.62  Cascading sheets (story / what we print)
- *   0.58 - 0.92  Binding detail (how we work)
+ * Fixed CSS-3D motion layer — Book → Sheets → Binding.
+ * Always paints BELOW page content (z-0 vs content z-20).
  */
-export function MotionLayer() {
+export function MotionLayer(props: SectionRefs) {
+  return (
+    <MotionErrorBoundary>
+      <MotionLayerInner {...props} />
+    </MotionErrorBoundary>
+  );
+}
+
+class MotionErrorBoundary extends Component<
+  { children: ReactNode },
+  { failed: boolean }
+> {
+  state = { failed: false };
+  static getDerivedStateFromError() {
+    return { failed: true };
+  }
+  componentDidCatch(_e: Error, _i: ErrorInfo) {}
+  render() {
+    if (this.state.failed) return null;
+    return this.props.children;
+  }
+}
+
+function easeOut(t: number) {
+  const c = Math.min(1, Math.max(0, t));
+  return 1 - (1 - c) * (1 - c);
+}
+
+function MotionLayerInner({ heroRef, sheetsRef, workRef }: SectionRefs) {
   const reduce = useReducedMotion();
-  const { scrollYProgress } = useScroll();
 
-  // Book — visible early, fades out by ~28%
-  const bookOpacity = useTransform(scrollYProgress, [0, 0.05, 0.22, 0.3], [0, 1, 1, 0]);
-  const bookLeftRot = useTransform(scrollYProgress, [0, 0.28], [-70, -8]);
-  const bookRightRot = useTransform(scrollYProgress, [0, 0.28], [70, 8]);
-  const bookY = useTransform(scrollYProgress, [0, 0.3], [0, -60]);
+  const { scrollYProgress: heroProgress } = useScroll({
+    target: heroRef,
+    offset: ["start start", "end start"],
+  });
+  const { scrollYProgress: sheetsProgress } = useScroll({
+    target: sheetsRef,
+    offset: ["start end", "end start"],
+  });
+  const { scrollYProgress: workProgress } = useScroll({
+    target: workRef,
+    offset: ["start end", "end start"],
+  });
 
-  // Sheets — story + what we print
+  const bookOpacity = useTransform(heroProgress, [0, 0.6, 0.9, 1], [1, 1, 0.15, 0]);
+  const bookY = useTransform(heroProgress, [0, 1], [0, -40]);
+
+  // Open while hero is on screen: -65° → -12° / 65° → 12°
+  const leftRot = useTransform(heroProgress, (v: number) => {
+    if (reduce) return -14;
+    return -65 + easeOut(Math.min(1, v / 0.7)) * 53;
+  });
+  const rightRot = useTransform(heroProgress, (v: number) => {
+    if (reduce) return 14;
+    return 65 - easeOut(Math.min(1, v / 0.7)) * 53;
+  });
+
   const sheetsOpacity = useTransform(
-    scrollYProgress,
-    [0.2, 0.3, 0.55, 0.65],
+    sheetsProgress,
+    [0.1, 0.24, 0.7, 0.86],
     [0, 1, 1, 0],
   );
-  const sheetsRot = useTransform(scrollYProgress, [0.2, 0.65], [0, 22]);
-  const sheetsY = useTransform(scrollYProgress, [0.2, 0.65], [40, -80]);
+  const sheetsY = useTransform(sheetsProgress, [0.15, 0.85], [36, -56]);
+  const sheetsRot = useTransform(sheetsProgress, [0.15, 0.85], [4, -8]);
 
-  // Binding — how we work
   const bindOpacity = useTransform(
-    scrollYProgress,
-    [0.55, 0.65, 0.88, 0.96],
+    workProgress,
+    [0.12, 0.3, 0.72, 0.9],
     [0, 1, 1, 0],
   );
-  const bindRot = useTransform(scrollYProgress, [0.55, 0.96], [-12, 6]);
-  const bindY = useTransform(scrollYProgress, [0.55, 0.96], [40, -40]);
+  const bindY = useTransform(workProgress, [0.2, 0.85], [28, -36]);
+  const bindRot = useTransform(workProgress, [0.2, 0.85], [-6, 10]);
 
   return (
     <div
       aria-hidden
-      className="pointer-events-none fixed inset-0 -z-10 overflow-hidden"
-      style={{ perspective: "1400px" }}
+      className="pointer-events-none fixed inset-0 z-0 overflow-hidden"
     >
-      {/* halftone dots */}
       <div
         className="absolute inset-0"
         style={{
           background:
-            "radial-gradient(circle at 1px 1px, rgba(27,63,190,0.10) 1px, transparent 1.6px) 0 0/22px 22px, radial-gradient(circle at 1px 1px, rgba(30,158,94,0.08) 1px, transparent 1.6px) 8px 8px/22px 22px",
+            "radial-gradient(ellipse 65% 55% at 62% 40%, rgba(255,255,255,0.5) 0%, transparent 70%)",
+        }}
+      />
+      <div
+        className="absolute inset-0"
+        style={{
+          background: [
+            "radial-gradient(circle at 1px 1px, rgba(0,120,168,0.07) 1px, transparent 1.35px) 0 0 / 22px 22px",
+            "radial-gradient(circle at 1px 1px, rgba(104,184,72,0.055) 1px, transparent 1.35px) 11px 11px / 22px 22px",
+          ].join(", "),
           maskImage:
-            "radial-gradient(ellipse at center, black 45%, transparent 85%)",
+            "radial-gradient(ellipse 68% 62% at 60% 40%, black 25%, transparent 75%)",
+          WebkitMaskImage:
+            "radial-gradient(ellipse 68% 62% at 60% 40%, black 25%, transparent 75%)",
         }}
       />
-      {/* cutting mat grid */}
+
       <div
         className="absolute inset-0"
+        style={{ perspective: 1400, perspectiveOrigin: "70% 40%" }}
+      >
+        {/* BOOK — locked to the right half so it never covers hero copy */}
+        <motion.div
+          className="absolute top-[18vh] left-[52%] right-0 flex justify-center md:top-[14vh] lg:top-[12vh]"
+          style={{ opacity: bookOpacity, y: reduce ? 0 : bookY }}
+        >
+          <div className="origin-top scale-[0.55] sm:scale-[0.7] md:scale-[0.85] lg:scale-100">
+            <Notebook leftRot={leftRot} rightRot={rightRot} />
+          </div>
+        </motion.div>
+
+        {/* SHEETS — left side, bigger + clearer 3D paper */}
+        <motion.div
+          className="absolute top-[10vh] left-[1vw] hidden w-[min(480px,46vw)] justify-start sm:flex md:left-[2vw] lg:left-[3vw]"
+          style={{
+            opacity: sheetsOpacity,
+            y: reduce ? 0 : sheetsY,
+          }}
+        >
+          <div className="origin-center scale-[0.85] md:scale-[1] lg:scale-[1.15]">
+            <PaperFan
+              progress={sheetsProgress}
+              groupRot={reduce ? 0 : sheetsRot}
+              reduce={!!reduce}
+            />
+          </div>
+        </motion.div>
+
+        {/* BINDING — far right, clear of "bound by hand" headline */}
+        <motion.div
+          className="absolute top-[8vh] right-[1vw] hidden w-[min(520px,48vw)] justify-end sm:flex md:right-[3vw] lg:right-[5vw]"
+          style={{
+            opacity: bindOpacity,
+            y: reduce ? 0 : bindY,
+          }}
+        >
+          <div className="origin-center scale-[0.9] md:scale-[1.05] lg:scale-[1.2]">
+            <BookPile rotY={reduce ? 0 : bindRot} />
+          </div>
+        </motion.div>
+      </div>
+    </div>
+  );
+}
+
+/* ─────────────────────────────────────────────
+ * Notebook — one product, contained open
+ * Covers only; pages are a fixed wedge between them (no flying leaves)
+ * ───────────────────────────────────────────── */
+
+const BLUE =
+  "linear-gradient(150deg, #006088 0%, #0078A8 45%, #2A9AD0 100%)";
+
+function Notebook({
+  leftRot,
+  rightRot,
+}: {
+  leftRot: MotionValue<number>;
+  rightRot: MotionValue<number>;
+}) {
+  return (
+    <div
+      style={{
+        width: 420,
+        height: 300,
+        position: "relative",
+        transformStyle: "preserve-3d",
+        transform: "rotateX(20deg) rotateY(-18deg)",
+      }}
+    >
+      {/* Ground shadow */}
+      <div
         style={{
+          position: "absolute",
+          left: "15%",
+          right: "15%",
+          bottom: -14,
+          height: 24,
           background:
-            "repeating-linear-gradient(0deg, rgba(27,63,190,0.05) 0 1px, transparent 1px 80px), repeating-linear-gradient(90deg, rgba(27,63,190,0.05) 0 1px, transparent 1px 80px)",
+            "radial-gradient(ellipse, rgba(13,26,46,0.22) 0%, transparent 70%)",
+          transform: "translateZ(-24px)",
         }}
       />
 
-      {/* Object 1 — Book */}
-      <motion.div
-        className="absolute top-[18vh] right-[6vw] hidden md:block"
+      {/* Static page block (center) — stays put, covers open around it */}
+      <div
         style={{
-          opacity: bookOpacity,
-          y: reduce ? 0 : bookY,
+          position: "absolute",
+          left: "8%",
+          right: "8%",
+          top: 14,
+          bottom: 14,
           transformStyle: "preserve-3d",
-          width: 420,
-          height: 300,
+          transform: "translateZ(1px)",
         }}
       >
-        <div className="relative" style={{ transformStyle: "preserve-3d", width: "100%", height: "100%" }}>
-          {/* spine */}
-          <div
-            className="absolute left-1/2 top-0 h-full"
-            style={{
-              width: 14,
-              transform: "translateX(-50%)",
-              background: "linear-gradient(180deg, #0D1A2E, #122E9A)",
-              borderRadius: 2,
-            }}
-          />
-          {/* left cover */}
-          <motion.div
-            className="absolute top-0 left-0 h-full"
-            style={{
-              width: "50%",
-              transformOrigin: "right center",
-              rotateY: reduce ? -8 : bookLeftRot,
-              background: "linear-gradient(135deg, #122E9A, #3D5FD4)",
-              borderRadius: "6px 2px 2px 6px",
-              boxShadow: "0 20px 40px -20px rgba(13,26,46,0.4)",
-            }}
-          >
+        <div
+          style={{
+            position: "absolute",
+            inset: 0,
+            display: "flex",
+            background: "#F7F3EA",
+            borderRadius: 3,
+            boxShadow: "0 12px 28px -16px rgba(13,26,46,0.35)",
+            overflow: "hidden",
+          }}
+        >
+          <div style={{ flex: 1, borderRight: "1px solid rgba(13,26,46,0.06)", position: "relative" }}>
             <div
-              className="absolute inset-2"
-              style={{ background: "#F4F7F2", borderRadius: 3, transform: "translateZ(4px)" }}
+              style={{
+                position: "absolute",
+                left: 16,
+                right: 12,
+                top: 28,
+                bottom: 16,
+                backgroundImage:
+                  "repeating-linear-gradient(0deg, transparent 0 15px, rgba(13,26,46,0.07) 15px 16px)",
+              }}
             />
-          </motion.div>
-          {/* right cover */}
-          <motion.div
-            className="absolute top-0 right-0 h-full"
-            style={{
-              width: "50%",
-              transformOrigin: "left center",
-              rotateY: reduce ? 8 : bookRightRot,
-              background: "linear-gradient(135deg, #1E9E5E, #2ECC8A)",
-              borderRadius: "2px 6px 6px 2px",
-              boxShadow: "0 20px 40px -20px rgba(13,26,46,0.4)",
-            }}
-          >
             <div
-              className="absolute inset-2"
-              style={{ background: "#F4F7F2", borderRadius: 3, transform: "translateZ(4px)" }}
+              style={{
+                position: "absolute",
+                left: 16,
+                right: 12,
+                top: 22,
+                height: 1.5,
+                background: "rgba(104,184,72,0.4)",
+              }}
             />
-          </motion.div>
-          {/* ribbon */}
-          <div
-            className="absolute left-1/2 top-2"
-            style={{
-              width: 6,
-              height: 220,
-              transform: "translateX(-50%) translateZ(2px)",
-              background: "linear-gradient(180deg, #2ECC8A, #177A4A)",
-              borderRadius: 1,
-            }}
-          />
+          </div>
+          <div style={{ flex: 1, position: "relative" }}>
+            <div
+              style={{
+                position: "absolute",
+                left: 12,
+                right: 16,
+                top: 28,
+                bottom: 16,
+                backgroundImage:
+                  "repeating-linear-gradient(0deg, transparent 0 15px, rgba(13,26,46,0.07) 15px 16px)",
+              }}
+            />
+            <div
+              style={{
+                position: "absolute",
+                left: 12,
+                right: 16,
+                top: 22,
+                height: 1.5,
+                background: "rgba(104,184,72,0.4)",
+              }}
+            />
+          </div>
         </div>
-      </motion.div>
+      </div>
 
-      {/* Object 2 — Cascading sheets */}
-      <motion.div
-        className="absolute top-[30vh] left-[6vw] hidden md:block"
+      {/* Spine */}
+      <div
         style={{
-          opacity: sheetsOpacity,
-          y: reduce ? 0 : sheetsY,
-          rotate: reduce ? 0 : sheetsRot,
+          position: "absolute",
+          left: "50%",
+          top: 0,
+          bottom: 0,
+          width: 18,
+          marginLeft: -9,
+          background:
+            "linear-gradient(90deg, #0A0A0A, #4F8F2E 28%, #68B848 50%, #006088 72%, #0A0A0A)",
+          borderRadius: 2,
+          transform: "translateZ(6px)",
+          boxShadow: "inset 0 0 0 1px rgba(255,255,255,0.1)",
+          zIndex: 3,
+        }}
+      />
+
+      {/* Left cover */}
+      <Cover side="left" rotateY={leftRot} />
+      {/* Right cover */}
+      <Cover side="right" rotateY={rightRot} />
+
+      {/* Ribbon */}
+      <div
+        style={{
+          position: "absolute",
+          left: "50%",
+          top: 8,
+          width: 8,
+          height: 200,
+          marginLeft: -4,
+          background: "linear-gradient(180deg, #88C868, #4F8F2E)",
+          clipPath: "polygon(0 0, 100% 0, 100% 90%, 50% 100%, 0 90%)",
+          transform: "translateZ(10px)",
+          zIndex: 4,
+        }}
+      />
+    </div>
+  );
+}
+
+function Cover({
+  side,
+  rotateY,
+}: {
+  side: "left" | "right";
+  rotateY: MotionValue<number>;
+}) {
+  const isLeft = side === "left";
+  return (
+    <motion.div
+      style={{
+        position: "absolute",
+        top: 0,
+        bottom: 0,
+        width: "50%",
+        ...(isLeft ? { left: 0 } : { right: 0 }),
+        transformOrigin: isLeft ? "right center" : "left center",
+        transformStyle: "preserve-3d",
+        rotateY,
+        zIndex: 2,
+      }}
+    >
+      <div
+        style={{
+          position: "absolute",
+          inset: 0,
+          background: BLUE,
+          borderRadius: isLeft ? "10px 1px 1px 10px" : "1px 10px 10px 1px",
+          boxShadow:
+            "0 24px 40px -20px rgba(13,26,46,0.45), inset 0 1px 0 rgba(255,255,255,0.16)",
+        }}
+      />
+      {/* thickness */}
+      <div
+        style={{
+          position: "absolute",
+          top: 0,
+          bottom: 0,
+          width: 10,
+          ...(isLeft ? { left: 0 } : { right: 0 }),
+          background: "#006088",
+          transformOrigin: isLeft ? "left center" : "right center",
+          transform: isLeft
+            ? "rotateY(-90deg) translateX(-10px)"
+            : "rotateY(90deg) translateX(10px)",
+        }}
+      />
+      {/* foil */}
+      <div
+        style={{
+          position: "absolute",
+          top: 28,
+          bottom: 28,
+          width: 2,
+          ...(isLeft ? { right: 14 } : { left: 14 }),
+          background: "rgba(255,255,255,0.3)",
+          transform: "translateZ(1px)",
+        }}
+      />
+    </motion.div>
+  );
+}
+
+/* ─────────────────────────────────────────────
+ * Paper fan — thick ruled sheets with real depth
+ * ───────────────────────────────────────────── */
+
+const FAN = [
+  { x: -10, y: 0, z: 0, rx: 8, ry: -16, rz: -11, spread: -48, tint: "#FBF8F0" },
+  { x: 28, y: 28, z: 36, rx: -3, ry: 8, rz: 4, spread: 14, tint: "#FDFBF5" },
+  { x: -4, y: 64, z: 72, rx: 5, ry: -6, rz: -5, spread: -28, tint: "#F7F3EA" },
+  { x: 40, y: 108, z: 110, rx: -2, ry: 12, rz: 10, spread: 52, tint: "#FDFBF5" },
+] as const;
+
+function PaperFan({
+  progress,
+  groupRot,
+  reduce,
+}: {
+  progress: MotionValue<number>;
+  groupRot: MotionValue<number> | number;
+  reduce: boolean;
+}) {
+  return (
+    <motion.div
+      style={{
+        width: 420,
+        height: 480,
+        position: "relative",
+        transformStyle: "preserve-3d",
+        rotateY: groupRot,
+      }}
+    >
+      <div
+        style={{
+          position: "absolute",
+          inset: 0,
           transformStyle: "preserve-3d",
-          width: 360,
-          height: 380,
+          transform: "rotateX(22deg) rotateY(16deg)",
         }}
       >
-        {[
-          { x: 0, y: 0, r: -8, z: 0 },
-          { x: 40, y: 30, r: 6, z: 20 },
-          { x: -20, y: 70, r: -3, z: 40 },
-          { x: 50, y: 110, r: 10, z: 60 },
-        ].map((s, i) => (
-          <div
-            key={i}
-            className="absolute"
-            style={{
-              width: 240,
-              height: 320,
-              left: 40,
-              top: 20,
-              transform: `translate3d(${s.x}px, ${s.y}px, ${s.z}px) rotate(${s.r}deg)`,
-              background:
-                "linear-gradient(#FDFBF5, #F4F1E8), repeating-linear-gradient(0deg, transparent 0 22px, rgba(13,26,46,0.06) 22px 23px)",
-              backgroundBlendMode: "multiply",
-              border: "1px solid rgba(27,63,190,0.08)",
-              borderRadius: 3,
-              boxShadow: "0 18px 30px -22px rgba(13,26,46,0.4)",
-            }}
-          />
+        {/* Ground contact */}
+        <div
+          style={{
+            position: "absolute",
+            left: 40,
+            top: 360,
+            width: 280,
+            height: 40,
+            background:
+              "radial-gradient(ellipse at center, rgba(13,26,46,0.18) 0%, transparent 70%)",
+            transform: "translateZ(-40px) rotateX(90deg)",
+          }}
+        />
+        {FAN.map((s, i) => (
+          <FanSheet key={i} index={i} base={s} progress={progress} reduce={reduce} />
         ))}
-      </motion.div>
+      </div>
+    </motion.div>
+  );
+}
 
-      {/* Object 3 — Binding detail */}
-      <motion.div
-        className="absolute top-[35vh] right-[8vw] hidden md:block"
+function FanSheet({
+  index,
+  base,
+  progress,
+  reduce,
+}: {
+  index: number;
+  base: (typeof FAN)[number];
+  progress: MotionValue<number>;
+  reduce: boolean;
+}) {
+  const enter = 0.12 + index * 0.05;
+  const opacity = useTransform(
+    progress,
+    [enter, enter + 0.12, 0.68, 0.84],
+    [0, 1, 1, 0],
+  );
+  const driftX = useTransform(progress, [0.18, 0.8], [0, reduce ? 0 : base.spread]);
+  const driftZ = useTransform(progress, [0.18, 0.8], [0, reduce ? 0 : 18 + index * 8]);
+  const driftRz = useTransform(
+    progress,
+    [0.18, 0.8],
+    [0, reduce ? 0 : (index % 2 === 0 ? 5 : -4)],
+  );
+
+  const x = useTransform(driftX, (d) => base.x + d);
+  const z = useTransform(driftZ, (d) => base.z + d);
+  const rz = useTransform(driftRz, (d) => base.rz + d);
+
+  return (
+    <motion.div
+      style={{
+        position: "absolute",
+        left: 48,
+        top: 24,
+        width: 260,
+        height: 340,
+        opacity,
+        x,
+        y: base.y,
+        z,
+        rotateX: base.rx,
+        rotateY: base.ry,
+        rotateZ: rz,
+        transformStyle: "preserve-3d",
+      }}
+    >
+      {/* Paper face */}
+      <div
         style={{
-          opacity: bindOpacity,
-          y: reduce ? 0 : bindY,
-          rotate: reduce ? 0 : bindRot,
-          transformStyle: "preserve-3d",
-          width: 340,
-          height: 300,
+          position: "absolute",
+          inset: 0,
+          background: base.tint,
+          border: "1px solid rgba(0,120,168,0.14)",
+          borderRadius: 4,
+          boxShadow:
+            "0 28px 44px -18px rgba(13,26,46,0.42), inset 0 0 0 1px rgba(255,255,255,0.4)",
+          overflow: "hidden",
         }}
       >
-        {[
-          { c: "linear-gradient(135deg, #122E9A, #3D5FD4)", y: 0, r: -6 },
-          { c: "linear-gradient(135deg, #1E9E5E, #2ECC8A)", y: 28, r: 4 },
-          { c: "linear-gradient(135deg, #F4F7F2, #E7E1D0)", y: 56, r: -2 },
-        ].map((p, i) => (
+        {/* Paper grain */}
+        <div
+          style={{
+            position: "absolute",
+            inset: 0,
+            opacity: 0.45,
+            backgroundImage:
+              "radial-gradient(circle at 30% 40%, rgba(13,26,46,0.04) 0.6px, transparent 1px)",
+            backgroundSize: "5px 5px",
+            pointerEvents: "none",
+          }}
+        />
+
+        {/* Left margin guide */}
+        <div
+          style={{
+            position: "absolute",
+            left: 44,
+            top: 36,
+            bottom: 28,
+            width: 1,
+            background: "rgba(190, 60, 60, 0.22)",
+          }}
+        />
+
+        {/* Green header rule */}
+        <div
+          style={{
+            position: "absolute",
+            left: 20,
+            right: 18,
+            top: 36,
+            height: 2,
+            background: "rgba(104,184,72,0.5)",
+            borderRadius: 1,
+          }}
+        />
+
+        {/* Ruled field */}
+        <div
+          style={{
+            position: "absolute",
+            left: 20,
+            right: 18,
+            top: 52,
+            bottom: 28,
+            backgroundImage:
+              "repeating-linear-gradient(to bottom, transparent 0, transparent 19px, rgba(13,26,46,0.09) 19px, rgba(13,26,46,0.09) 20px)",
+          }}
+        />
+
+        {/* Hole punches */}
+        {[0, 1, 2].map((h) => (
           <div
-            key={i}
-            className="absolute"
+            key={h}
             style={{
-              left: 20,
-              top: 20 + p.y,
-              width: 280,
-              height: 60,
-              background: p.c,
-              borderRadius: 3,
-              transform: `rotate(${p.r}deg)`,
-              boxShadow: "0 14px 28px -20px rgba(13,26,46,0.4)",
+              position: "absolute",
+              left: 14,
+              top: 70 + h * 90,
+              width: 10,
+              height: 10,
+              borderRadius: "50%",
+              background: "rgba(13,26,46,0.06)",
+              boxShadow: "inset 0 1px 2px rgba(13,26,46,0.15)",
             }}
           />
         ))}
-        {/* stitches */}
-        {[0, 1, 2].map((i) => (
-          <div
-            key={`s${i}`}
-            className="absolute"
-            style={{
-              left: 60 + i * 90,
-              top: 210,
-              width: 40,
-              height: 12,
-              border: "2px solid #1E9E5E",
-              borderBottom: "none",
-              borderRadius: "40px 40px 0 0",
-            }}
-          />
+
+        {/* Folded corner */}
+        <div
+          style={{
+            position: "absolute",
+            right: 0,
+            bottom: 0,
+            width: 0,
+            height: 0,
+            borderStyle: "solid",
+            borderWidth: "0 0 28px 28px",
+            borderColor: "transparent transparent #E8E2D4 transparent",
+            filter: "drop-shadow(-1px -1px 1px rgba(13,26,46,0.08))",
+          }}
+        />
+        <div
+          style={{
+            position: "absolute",
+            right: 0,
+            bottom: 0,
+            width: 0,
+            height: 0,
+            borderStyle: "solid",
+            borderWidth: "28px 28px 0 0",
+            borderColor: "#F0EBE0 transparent transparent transparent",
+            opacity: 0.9,
+          }}
+        />
+      </div>
+
+      {/* Paper thickness edge */}
+      <div
+        style={{
+          position: "absolute",
+          right: 0,
+          top: 2,
+          bottom: 2,
+          width: 8,
+          transformOrigin: "right center",
+          transform: "rotateY(90deg)",
+          background: "linear-gradient(90deg, #EDE6D6, #F7F3EA)",
+          boxShadow: "inset 0 0 0 1px rgba(13,26,46,0.06)",
+        }}
+      />
+      <div
+        style={{
+          position: "absolute",
+          left: 2,
+          right: 2,
+          bottom: 0,
+          height: 6,
+          transformOrigin: "bottom center",
+          transform: "rotateX(-90deg)",
+          background: "rgba(13,26,46,0.1)",
+        }}
+      />
+    </motion.div>
+  );
+}
+
+/* ─────────────────────────────────────────────
+ * Book pile — thick mini-notebooks with real edges
+ * ───────────────────────────────────────────── */
+
+function BookPile({ rotY }: { rotY: MotionValue<number> | number }) {
+  const books = [
+    {
+      x: 0,
+      y: 0,
+      z: 0,
+      rz: -7,
+      cover: "linear-gradient(145deg, #006088 0%, #0078A8 55%, #2A9AD0 100%)",
+      spine: "#0A0A0A",
+      page: "#E8E0D0",
+    },
+    {
+      x: 26,
+      y: 56,
+      z: 48,
+      rz: 5,
+      cover: "linear-gradient(145deg, #4F8F2E 0%, #68B848 50%, #88C868 100%)",
+      spine: "#2E5A1A",
+      page: "#F0EADB",
+    },
+    {
+      x: 12,
+      y: 112,
+      z: 96,
+      rz: -3,
+      cover: "linear-gradient(145deg, #FAF7F0 0%, #EDE6D6 100%)",
+      spine: "#2A3D55",
+      page: "#FDFBF5",
+      cream: true,
+      stitches: true,
+    },
+  ] as const;
+
+  return (
+    <motion.div
+      style={{
+        width: 440,
+        height: 420,
+        position: "relative",
+        transformStyle: "preserve-3d",
+        rotateY: rotY,
+      }}
+    >
+      <div
+        style={{
+          position: "absolute",
+          inset: 0,
+          transformStyle: "preserve-3d",
+          transform: "rotateX(28deg) rotateY(-24deg)",
+        }}
+      >
+        {/* Soft pool shadow under the pile */}
+        <div
+          style={{
+            position: "absolute",
+            left: 56,
+            top: 290,
+            width: 300,
+            height: 56,
+            background:
+              "radial-gradient(ellipse at center, rgba(13,26,46,0.28) 0%, transparent 68%)",
+            transform: "translateZ(-30px) rotateX(90deg)",
+          }}
+        />
+
+        {books.map((b, i) => (
+          <ThickNotebook key={i} book={b} />
         ))}
-      </motion.div>
+      </div>
+    </motion.div>
+  );
+}
+
+function ThickNotebook({
+  book,
+}: {
+  book: {
+    x: number;
+    y: number;
+    z: number;
+    rz: number;
+    cover: string;
+    spine: string;
+    page: string;
+    cream?: boolean;
+    stitches?: boolean;
+  };
+}) {
+  const thickness = 22;
+
+  return (
+    <div
+      style={{
+        position: "absolute",
+        left: 64 + book.x,
+        top: 40 + book.y,
+        width: 280,
+        height: 176,
+        transformStyle: "preserve-3d",
+        transform: `translateZ(${book.z}px) rotateZ(${book.rz}deg)`,
+      }}
+    >
+      {/* Cover face */}
+      <div
+        style={{
+          position: "absolute",
+          inset: 0,
+          background: book.cover,
+          borderRadius: 6,
+          border: book.cream ? "1px solid rgba(0,120,168,0.16)" : "none",
+          boxShadow:
+            "0 28px 48px -20px rgba(13,26,46,0.5), inset 0 1px 0 rgba(255,255,255,0.2)",
+          transform: "translateZ(0px)",
+        }}
+      />
+
+      {/* Cover linen hint */}
+      <div
+        style={{
+          position: "absolute",
+          inset: 0,
+          borderRadius: 6,
+          opacity: book.cream ? 0.15 : 0.25,
+          backgroundImage:
+            "radial-gradient(circle at 40% 30%, rgba(255,255,255,0.2) 0.5px, transparent 1px)",
+          backgroundSize: "4px 4px",
+          pointerEvents: "none",
+          transform: "translateZ(0.5px)",
+        }}
+      />
+
+      {/* Foil rule */}
+      <div
+        style={{
+          position: "absolute",
+          left: 28,
+          top: 22,
+          bottom: 22,
+          width: 2,
+          borderRadius: 1,
+          background: book.cream
+            ? "rgba(0,120,168,0.28)"
+            : "rgba(255,255,255,0.35)",
+          transform: "translateZ(1px)",
+        }}
+      />
+
+      {/* Spine face (left) */}
+      <div
+        style={{
+          position: "absolute",
+          left: 0,
+          top: 0,
+          width: thickness,
+          height: "100%",
+          background: `linear-gradient(90deg, ${book.spine} 0%, #111 100%)`,
+          transformOrigin: "left center",
+          transform: "rotateY(-90deg)",
+          borderRadius: "4px 0 0 4px",
+          boxShadow: "inset -2px 0 0 rgba(255,255,255,0.08)",
+        }}
+      >
+        {book.stitches &&
+          [0, 1, 2].map((s) => (
+            <div
+              key={s}
+              style={{
+                position: "absolute",
+                left: 3,
+                right: 3,
+                top: 28 + s * 46,
+                height: 16,
+                borderTop: "2.5px solid #68B848",
+                borderLeft: "2px solid #68B848",
+                borderRight: "2px solid #68B848",
+                borderBottom: "none",
+                borderRadius: "10px 10px 0 0",
+                opacity: 0.95,
+              }}
+            />
+          ))}
+      </div>
+
+      {/* Page block (fore-edge) */}
+      <div
+        style={{
+          position: "absolute",
+          right: 0,
+          top: 4,
+          bottom: 4,
+          width: thickness,
+          transformOrigin: "right center",
+          transform: "rotateY(90deg)",
+          background: `repeating-linear-gradient(180deg, ${book.page} 0 2px, #FDFBF5 2px 4px, ${book.page} 4px 6px)`,
+          boxShadow: "inset 0 0 0 1px rgba(13,26,46,0.08)",
+          borderRadius: 1,
+        }}
+      />
+
+      {/* Bottom edge (thickness) */}
+      <div
+        style={{
+          position: "absolute",
+          left: 0,
+          right: 0,
+          bottom: 0,
+          height: thickness,
+          transformOrigin: "bottom center",
+          transform: "rotateX(-90deg)",
+          background: book.cream
+            ? "linear-gradient(180deg, rgba(13,26,46,0.12), rgba(13,26,46,0.22))"
+            : "linear-gradient(180deg, rgba(0,0,0,0.25), rgba(0,0,0,0.4))",
+        }}
+      />
+
+      {/* Top edge */}
+      <div
+        style={{
+          position: "absolute",
+          left: 0,
+          right: 0,
+          top: 0,
+          height: thickness,
+          transformOrigin: "top center",
+          transform: "rotateX(90deg)",
+          background: book.cream
+            ? "linear-gradient(0deg, rgba(255,255,255,0.5), rgba(13,26,46,0.08))"
+            : "linear-gradient(0deg, rgba(255,255,255,0.15), rgba(0,0,0,0.25))",
+        }}
+      />
     </div>
   );
 }

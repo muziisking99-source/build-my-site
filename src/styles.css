@@ -80,30 +80,32 @@
   --ink: #0D1A2E;
   --ink-2: #2A3D55;
   --body: #56677C;
-  --royal: #1B3FBE;
-  --royal-deep: #122E9A;
-  --royal-light: #3D5FD4;
-  --eco: #1E9E5E;
-  --eco-light: #2ECC8A;
-  --eco-deep: #177A4A;
-  --cream: #F4F7F2;
+  /* Logo-matched Alpine blue */
+  --royal: #0078A8;
+  --royal-deep: #006088;
+  --royal-light: #2A9AD0;
+  /* Logo-matched eco green */
+  --eco: #68B848;
+  --eco-light: #88C868;
+  --eco-deep: #4F8F2E;
+  --cream: #F3F7F8;
   --card: oklch(1 0 0);
   --card-foreground: #0D1A2E;
   --popover: oklch(1 0 0);
   --popover-foreground: #0D1A2E;
-  --primary: #1B3FBE;
+  --primary: #0078A8;
   --primary-foreground: #FFFFFF;
-  --secondary: #F4F7F2;
+  --secondary: #F3F7F8;
   --secondary-foreground: #0D1A2E;
-  --muted: #F4F7F2;
+  --muted: #F3F7F8;
   --muted-foreground: #56677C;
   --accent: oklch(0.968 0.007 247.896);
   --accent-foreground: oklch(0.208 0.042 265.755);
   --destructive: oklch(0.577 0.245 27.325);
   --destructive-foreground: oklch(0.984 0.003 247.858);
-  --border: rgba(27, 63, 190, 0.13);
-  --input: rgba(27, 63, 190, 0.18);
-  --ring: #1B3FBE;
+  --border: rgba(0, 120, 168, 0.14);
+  --input: rgba(0, 120, 168, 0.2);
+  --ring: #0078A8;
   --chart-1: oklch(0.646 0.222 41.116);
   --chart-2: oklch(0.6 0.118 184.704);
   --chart-3: oklch(0.398 0.07 227.392);
@@ -160,7 +162,7 @@
   }
 
   body {
-    background-color: var(--color-background);
+    background-color: #F3F7F8;
     color: var(--color-body);
     font-family: var(--font-sans);
     -webkit-font-smoothing: antialiased;
@@ -199,7 +201,7 @@
   cursor: pointer;
   &:hover {
     transform: translateY(-2px);
-    box-shadow: 0 10px 24px -12px rgba(27, 63, 190, 0.5);
+    box-shadow: 0 10px 24px -12px rgba(0, 120, 168, 0.45);
     background: var(--color-royal-deep);
   }
   &:active { transform: scale(0.97); }
@@ -211,7 +213,7 @@
   justify-content: center;
   background: transparent;
   color: var(--color-ink);
-  border: 1px solid rgba(27, 63, 190, 0.22);
+  border: 1px solid rgba(0, 120, 168, 0.24);
   border-radius: 4px;
   padding: 12px 26px;
   font-size: 12px;
@@ -223,14 +225,14 @@
   &:hover {
     transform: translateY(-2px);
     box-shadow: 0 10px 24px -14px rgba(13, 26, 46, 0.35);
-    background: rgba(27, 63, 190, 0.04);
+    background: rgba(0, 120, 168, 0.05);
   }
   &:active { transform: scale(0.97); }
 }
 
 @utility card-surface {
   background: rgba(255, 255, 255, 0.72);
-  border: 1px solid rgba(27, 63, 190, 0.13);
+  border: 1px solid rgba(0, 120, 168, 0.14);
   border-radius: 6px;
   position: relative;
   overflow: hidden;
