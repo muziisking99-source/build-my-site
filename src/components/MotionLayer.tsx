@@ -233,10 +233,10 @@ function MotionLayerInner({ heroRef, sheetsRef, workRef }: SectionRefs) {
         <SceneShell
           opacity={bookOpacity}
           paused={paused}
-          className="absolute top-[18vh] left-[52%] right-0 flex justify-center md:top-[14vh] lg:top-[12vh]"
+          className="absolute top-[22vh] left-[28%] right-[-8%] flex justify-center sm:top-[18vh] sm:left-[52%] sm:right-0 md:top-[14vh] lg:top-[12vh]"
         >
           <motion.div style={{ y: bookY }}>
-            <div className="origin-center scale-[0.68] sm:scale-[0.82] md:scale-[0.95] lg:scale-[1.08]">
+            <div className="origin-center scale-[0.52] opacity-90 sm:scale-[0.82] sm:opacity-100 md:scale-[0.95] lg:scale-[1.08]">
               <Notebook tiltX={bookTiltX} tiltY={bookTiltY} />
             </div>
           </motion.div>
@@ -246,10 +246,10 @@ function MotionLayerInner({ heroRef, sheetsRef, workRef }: SectionRefs) {
         <SceneShell
           opacity={sheetsOpacity}
           paused={paused}
-          className="absolute top-[10vh] left-[1vw] hidden w-[min(480px,46vw)] justify-start sm:flex md:left-[2vw] lg:left-[3vw]"
+          className="absolute top-[12vh] left-[-6vw] flex w-[min(360px,72vw)] justify-start sm:top-[10vh] sm:left-[1vw] sm:w-[min(480px,46vw)] md:left-[2vw] lg:left-[3vw]"
         >
           <motion.div style={{ y: sheetsY }}>
-            <div className="origin-center scale-[0.85] md:scale-[1] lg:scale-[1.15]">
+            <div className="origin-center scale-[0.55] sm:scale-[0.85] md:scale-[1] lg:scale-[1.15]">
               <PaperFan
                 progress={sheetsProgress}
                 groupRot={sheetsRot}
@@ -263,10 +263,10 @@ function MotionLayerInner({ heroRef, sheetsRef, workRef }: SectionRefs) {
         <SceneShell
           opacity={bindOpacity}
           paused={paused}
-          className="absolute top-[8vh] right-[1vw] hidden w-[min(520px,48vw)] justify-end sm:flex md:right-[3vw] lg:right-[5vw]"
+          className="absolute top-[10vh] right-[-4vw] flex w-[min(380px,78vw)] justify-end sm:top-[8vh] sm:right-[1vw] sm:w-[min(520px,48vw)] md:right-[3vw] lg:right-[5vw]"
         >
           <motion.div style={{ y: bindY }}>
-            <div className="origin-center scale-[0.9] md:scale-[1.05] lg:scale-[1.2]">
+            <div className="origin-center scale-[0.58] sm:scale-[0.9] md:scale-[1.05] lg:scale-[1.2]">
               <BookPile rotY={bindRot} />
             </div>
           </motion.div>

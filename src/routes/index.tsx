@@ -59,20 +59,19 @@ type MotionMode = "idle" | "backdrop" | "full";
 
 function resolveMotionMode(): Exclude<MotionMode, "idle"> {
   const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-  const desktop = window.matchMedia("(min-width: 1024px)").matches;
-  const finePointer = window.matchMedia("(pointer: fine)").matches;
   const saveData =
     "connection" in navigator &&
     Boolean(
       (navigator as Navigator & { connection?: { saveData?: boolean } }).connection
         ?.saveData,
     );
-  const hidden = document.hidden;
-  if (reduce || saveData || hidden || !desktop || !finePointer) return "backdrop";
+  // Keep decorative work paused while the tab is hidden; otherwise show full CSS-3D
+  // on all viewports (including mobile). Static backdrop only for a11y / data-saver.
+  if (reduce || saveData || document.hidden) return "backdrop";
   return "full";
 }
 
-/** Reactive motion mode — desktop fine-pointer only; reacts to media + visibility. */
+/** Reactive motion mode — full CSS-3D by default; backdrop for reduced-motion / save-data. */
 function useDeferredMotionMode(): MotionMode {
   const [mode, setMode] = useState<MotionMode>("idle");
 
@@ -108,13 +107,9 @@ function useDeferredMotionMode(): MotionMode {
     schedule();
 
     const mqReduced = window.matchMedia("(prefers-reduced-motion: reduce)");
-    const mqDesktop = window.matchMedia("(min-width: 1024px)");
-    const mqPointer = window.matchMedia("(pointer: fine)");
     const onChange = () => schedule();
 
     mqReduced.addEventListener("change", onChange);
-    mqDesktop.addEventListener("change", onChange);
-    mqPointer.addEventListener("change", onChange);
     document.addEventListener("visibilitychange", onChange);
 
     const connection = (
@@ -131,8 +126,6 @@ function useDeferredMotionMode(): MotionMode {
       }
       if (timeoutId !== undefined) window.clearTimeout(timeoutId);
       mqReduced.removeEventListener("change", onChange);
-      mqDesktop.removeEventListener("change", onChange);
-      mqPointer.removeEventListener("change", onChange);
       document.removeEventListener("visibilitychange", onChange);
       connection?.removeEventListener?.("change", onChange);
     };
