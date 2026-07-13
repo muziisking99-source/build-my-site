@@ -7,6 +7,7 @@ import {
   useScroll,
   useTransform,
 } from "framer-motion";
+import { Menu } from "lucide-react";
 import {
   lazy,
   Suspense,
@@ -17,6 +18,15 @@ import {
   type RefObject,
 } from "react";
 
+import {
+  Sheet,
+  SheetClose,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
+  SheetTrigger,
+} from "@/components/ui/sheet";
+
 export const Route = createFileRoute("/")({
   component: Index,
 });
@@ -25,6 +35,18 @@ const EMAIL = "info@alpine-eco.co.za";
 const PHONE_DISPLAY = "011 493 0113";
 const PHONE_TEL = "+27114930113";
 const ADDRESS = "22 Stevens Rd, Stafford, Johannesburg, 2197, South Africa";
+
+const MOTION_EASE = [0.22, 1, 0.36, 1] as const;
+const MOTION_DURATION = 0.55;
+const MOTION_LIFT = 8;
+const MOTION_STAGGER = 0.06;
+
+const NAV_LINKS = [
+  ["story", "Story"],
+  ["print", "What We Print"],
+  ["work", "How We Work"],
+  ["contact", "Contact"],
+] as const;
 
 const LazyMotionLayer = lazy(() =>
   import("@/components/MotionLayer").then((m) => ({ default: m.MotionLayer })),
@@ -35,29 +57,85 @@ const LazyMotionBackdrop = lazy(() =>
 
 type MotionMode = "idle" | "backdrop" | "full";
 
+function resolveMotionMode(): Exclude<MotionMode, "idle"> {
+  const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  const desktop = window.matchMedia("(min-width: 1024px)").matches;
+  const finePointer = window.matchMedia("(pointer: fine)").matches;
+  const saveData =
+    "connection" in navigator &&
+    Boolean(
+      (navigator as Navigator & { connection?: { saveData?: boolean } }).connection
+        ?.saveData,
+    );
+  const hidden = document.hidden;
+  if (reduce || saveData || hidden || !desktop || !finePointer) return "backdrop";
+  return "full";
+}
+
+/** Reactive motion mode — desktop fine-pointer only; reacts to media + visibility. */
 function useDeferredMotionMode(): MotionMode {
   const [mode, setMode] = useState<MotionMode>("idle");
 
   useEffect(() => {
-    const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-    const mobile = window.matchMedia("(max-width: 767px)").matches;
-    const saveData =
-      "connection" in navigator &&
-      Boolean((navigator as Navigator & { connection?: { saveData?: boolean } }).connection?.saveData);
-    const next: MotionMode = reduce || mobile || saveData ? "backdrop" : "full";
+    let idleId: number | undefined;
+    let timeoutId: number | undefined;
+    let cancelled = false;
 
-    if (next === "full") {
-      void import("@/components/MotionLayer");
-    }
+    const apply = (next: Exclude<MotionMode, "idle">) => {
+      if (cancelled) return;
+      if (next === "full") void import("@/components/MotionLayer");
+      setMode(next);
+    };
 
-    const start = () => setMode(next);
+    const schedule = () => {
+      const next = resolveMotionMode();
+      if (idleId !== undefined && typeof window.cancelIdleCallback === "function") {
+        window.cancelIdleCallback(idleId);
+        idleId = undefined;
+      }
+      if (timeoutId !== undefined) {
+        window.clearTimeout(timeoutId);
+        timeoutId = undefined;
+      }
 
-    if (next === "full" && typeof window.requestIdleCallback === "function") {
-      const id = window.requestIdleCallback(start, { timeout: 280 });
-      return () => window.cancelIdleCallback(id);
-    }
-    const t = window.setTimeout(start, next === "full" ? 32 : 120);
-    return () => window.clearTimeout(t);
+      if (next === "full" && typeof window.requestIdleCallback === "function") {
+        idleId = window.requestIdleCallback(() => apply(next), { timeout: 280 });
+      } else {
+        timeoutId = window.setTimeout(() => apply(next), next === "full" ? 32 : 80);
+      }
+    };
+
+    schedule();
+
+    const mqReduced = window.matchMedia("(prefers-reduced-motion: reduce)");
+    const mqDesktop = window.matchMedia("(min-width: 1024px)");
+    const mqPointer = window.matchMedia("(pointer: fine)");
+    const onChange = () => schedule();
+
+    mqReduced.addEventListener("change", onChange);
+    mqDesktop.addEventListener("change", onChange);
+    mqPointer.addEventListener("change", onChange);
+    document.addEventListener("visibilitychange", onChange);
+
+    const connection = (
+      navigator as Navigator & {
+        connection?: EventTarget & { saveData?: boolean };
+      }
+    ).connection;
+    connection?.addEventListener?.("change", onChange);
+
+    return () => {
+      cancelled = true;
+      if (idleId !== undefined && typeof window.cancelIdleCallback === "function") {
+        window.cancelIdleCallback(idleId);
+      }
+      if (timeoutId !== undefined) window.clearTimeout(timeoutId);
+      mqReduced.removeEventListener("change", onChange);
+      mqDesktop.removeEventListener("change", onChange);
+      mqPointer.removeEventListener("change", onChange);
+      document.removeEventListener("visibilitychange", onChange);
+      connection?.removeEventListener?.("change", onChange);
+    };
   }, []);
 
   return mode;
@@ -94,7 +172,6 @@ function Logo({
   className?: string;
   size?: "nav" | "hero" | "footer";
 }) {
-  // Hero is clearly larger than nav, capped so it stays sharp
   const sizeClass =
     size === "hero"
       ? "h-16 w-auto max-w-[300px] object-contain object-left md:h-20 md:max-w-[360px]"
@@ -109,7 +186,7 @@ function Logo({
         e.preventDefault();
         scrollTo("hero");
       }}
-      className={`inline-flex items-center ${className}`}
+      className={`inline-flex items-center focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-3 focus-visible:outline-[color:var(--color-royal)] ${className}`}
       aria-label="Alpine-eco Notebooks & Diaries — home"
     >
       <picture>
@@ -127,20 +204,60 @@ function Logo({
   );
 }
 
+function NavLink({
+  id,
+  label,
+  active,
+  onNavigate,
+}: {
+  id: string;
+  label: string;
+  active?: boolean;
+  onNavigate?: () => void;
+}) {
+  return (
+    <a
+      href={`#${id}`}
+      onClick={(e) => {
+        e.preventDefault();
+        scrollTo(id);
+        onNavigate?.();
+      }}
+      aria-current={active ? "true" : undefined}
+      className={`gradient-underline text-[12px] font-medium uppercase tracking-[0.16em] transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-3 focus-visible:outline-[color:var(--color-royal)] ${
+        active
+          ? "text-[color:var(--color-royal)]"
+          : "text-[color:var(--color-ink-2)] hover:text-[color:var(--color-royal)]"
+      }`}
+    >
+      {label}
+    </a>
+  );
+}
+
 function Nav() {
   const [scrolled, setScrolled] = useState(false);
+  const [active, setActive] = useState("hero");
+  const [menuOpen, setMenuOpen] = useState(false);
+
   useEffect(() => {
-    const on = () => setScrolled(window.scrollY > 80);
-    on();
-    window.addEventListener("scroll", on, { passive: true });
-    return () => window.removeEventListener("scroll", on);
+    const onScroll = () => {
+      setScrolled(window.scrollY > 80);
+      const ids = ["hero", "story", "print", "work", "contact"] as const;
+      let current: string = "hero";
+      for (const id of ids) {
+        const el = document.getElementById(id);
+        if (!el) continue;
+        const top = el.getBoundingClientRect().top;
+        if (top <= 120) current = id;
+      }
+      setActive(current);
+    };
+    onScroll();
+    window.addEventListener("scroll", onScroll, { passive: true });
+    return () => window.removeEventListener("scroll", onScroll);
   }, []);
-  const links = [
-    ["story", "Story"],
-    ["print", "What We Print"],
-    ["work", "How We Work"],
-    ["contact", "Contact"],
-  ] as const;
+
   return (
     <header
       className={`fixed top-0 left-0 right-0 z-50 transition-colors duration-300 ${
@@ -149,38 +266,99 @@ function Nav() {
           : "bg-transparent"
       }`}
     >
-      <div className="mx-auto flex max-w-7xl items-center justify-between px-6 py-3 sm:px-8 lg:px-12">
+      <div className="mx-auto flex max-w-7xl items-center justify-between gap-4 px-6 py-3 sm:px-8 lg:px-12">
         <Logo
           className={`transition-opacity duration-300 ${
-            scrolled ? "opacity-100" : "pointer-events-none opacity-0 md:opacity-0"
+            scrolled ? "opacity-100" : "opacity-100 md:opacity-0 md:pointer-events-none"
           }`}
         />
-        <nav className="hidden items-center gap-8 md:flex">
-          {links.map(([id, label]) => (
-            <button
-              key={id}
-              onClick={() => scrollTo(id)}
-              className="text-[12px] font-medium uppercase tracking-[0.16em] text-[color:var(--color-ink-2)] transition-colors hover:text-[color:var(--color-royal)]"
-            >
-              {label}
-            </button>
+
+        <nav
+          className="hidden items-center gap-8 md:flex"
+          aria-label="Primary"
+        >
+          {NAV_LINKS.map(([id, label]) => (
+            <NavLink key={id} id={id} label={label} active={active === id} />
           ))}
         </nav>
-        <button
-          onClick={() => scrollTo("contact")}
-          className="btn-primary hidden lg:inline-flex"
-          style={{ padding: "12px 22px" }}
-        >
-          Get In Touch
-        </button>
+
+        <div className="flex items-center gap-2">
+          <a
+            href="#contact"
+            onClick={(e) => {
+              e.preventDefault();
+              scrollTo("contact");
+            }}
+            className="btn-primary hidden sm:inline-flex"
+            style={{ padding: "12px 22px" }}
+          >
+            Get In Touch
+          </a>
+
+          <Sheet open={menuOpen} onOpenChange={setMenuOpen}>
+            <SheetTrigger asChild>
+              <button
+                type="button"
+                className="inline-flex h-11 w-11 items-center justify-center rounded-[4px] border border-[rgba(0,120,168,0.2)] bg-white/80 text-[color:var(--color-ink)] md:hidden"
+                aria-label="Open menu"
+              >
+                <Menu className="h-5 w-5" aria-hidden />
+              </button>
+            </SheetTrigger>
+            <SheetContent
+              side="right"
+              className="w-[min(100%,320px)] border-l border-[rgba(0,120,168,0.14)] bg-[color:var(--color-cream)] p-0"
+            >
+              <SheetHeader className="border-b border-[rgba(0,120,168,0.1)] px-6 py-5 text-left">
+                <SheetTitle className="font-serif text-2xl font-medium tracking-tight text-[color:var(--color-ink)]">
+                  Menu
+                </SheetTitle>
+              </SheetHeader>
+              <nav className="flex flex-col gap-1 px-4 py-4" aria-label="Mobile">
+                {NAV_LINKS.map(([id, label]) => (
+                  <SheetClose asChild key={id}>
+                    <a
+                      href={`#${id}`}
+                      onClick={(e) => {
+                        e.preventDefault();
+                        scrollTo(id);
+                        setMenuOpen(false);
+                      }}
+                      className="rounded-[4px] px-3 py-3 text-[13px] font-medium uppercase tracking-[0.14em] text-[color:var(--color-ink-2)] hover:bg-white/70 hover:text-[color:var(--color-royal)]"
+                    >
+                      {label}
+                    </a>
+                  </SheetClose>
+                ))}
+                <SheetClose asChild>
+                  <a
+                    href="#contact"
+                    onClick={(e) => {
+                      e.preventDefault();
+                      scrollTo("contact");
+                      setMenuOpen(false);
+                    }}
+                    className="btn-primary mt-4"
+                  >
+                    Get In Touch
+                  </a>
+                </SheetClose>
+              </nav>
+            </SheetContent>
+          </Sheet>
+        </div>
       </div>
     </header>
   );
 }
 
 const fadeUp = {
-  hidden: { opacity: 0, y: 8 },
-  show: { opacity: 1, y: 0, transition: { duration: 0.55, ease: "easeOut" } },
+  hidden: { opacity: 0, y: MOTION_LIFT },
+  show: {
+    opacity: 1,
+    y: 0,
+    transition: { duration: MOTION_DURATION, ease: MOTION_EASE },
+  },
 } as const;
 
 const fadeUpStatic = {
@@ -191,6 +369,15 @@ const fadeUpStatic = {
 function useRevealVariants() {
   const reduce = useReducedMotion();
   return reduce ? fadeUpStatic : fadeUp;
+}
+
+function useStaggerParent() {
+  const reduce = useReducedMotion();
+  return {
+    show: {
+      transition: { staggerChildren: reduce ? 0 : MOTION_STAGGER },
+    },
+  } as const;
 }
 
 function Eyebrow({ children }: { children: React.ReactNode }) {
@@ -227,11 +414,14 @@ function RulerProgress() {
 
 function Hero({ sectionRef }: { sectionRef: RefObject<HTMLElement | null> }) {
   const variants = useRevealVariants();
+  const stagger = useStaggerParent();
+  const reduce = useReducedMotion();
+
   return (
     <section
       ref={sectionRef}
       id="hero"
-      className="crop-marks relative overflow-hidden bg-transparent pt-28 pb-24 lg:pt-32 lg:pb-28"
+      className="crop-marks relative scroll-mt-24 overflow-hidden bg-transparent pt-28 pb-24 lg:pt-32 lg:pb-28"
     >
       <div
         aria-hidden
@@ -245,37 +435,33 @@ function Hero({ sectionRef }: { sectionRef: RefObject<HTMLElement | null> }) {
       />
       <div className="relative mx-auto grid max-w-7xl gap-12 px-6 sm:px-8 lg:grid-cols-12 lg:px-12">
         <m.div
-          initial="hidden"
+          initial={reduce ? false : "hidden"}
           animate="show"
-          variants={{ show: { transition: { staggerChildren: 0.06 } } }}
+          variants={stagger}
           className="lg:col-span-7"
         >
           <m.div variants={variants} className="flex flex-col items-start gap-3">
             <Logo size="hero" />
-            <Eyebrow>Alpine-eco · Printing &amp; Book-Binding</Eyebrow>
+            <Eyebrow>Printing &amp; Book-Binding · Johannesburg</Eyebrow>
           </m.div>
-          <m.h1
-            variants={variants}
-            className="mt-5 font-serif text-[56px] leading-[1.05] tracking-tight text-[color:var(--color-ink)] md:text-[76px] lg:text-[92px]"
-          >
+          <m.h1 variants={variants} className="display-title mt-5">
             From the press to the{" "}
             <span className="ink-accent italic text-[color:var(--color-royal)]">spine.</span>
           </m.h1>
           <m.p
             variants={variants}
-            className="mt-8 max-w-xl text-[18px] leading-relaxed text-[color:var(--color-body)] md:text-[19px]"
+            className="mt-8 max-w-xl text-[clamp(1.05rem,2.2vw,1.2rem)] leading-relaxed text-[color:var(--color-body)]"
           >
-            Alpine-eco is a Johannesburg printing and book-binding company. We print,
-            cut and bind notebooks, diaries and journals in-house — one roof, one
-            standard of finish.
+            We print, cut and bind notebooks, diaries and journals in-house — one roof,
+            one standard of finish.
           </m.p>
           <m.div variants={variants} className="mt-10 flex flex-wrap gap-3">
-            <button onClick={() => scrollTo("print")} className="btn-primary">
+            <a href="#print" onClick={(e) => { e.preventDefault(); scrollTo("print"); }} className="btn-primary">
               What We Print
-            </button>
-            <button onClick={() => scrollTo("story")} className="btn-ghost">
+            </a>
+            <a href="#story" onClick={(e) => { e.preventDefault(); scrollTo("story"); }} className="btn-ghost">
               Our Story
-            </button>
+            </a>
           </m.div>
           <m.div variants={variants} className="mt-12">
             <ColorBar />
@@ -292,7 +478,7 @@ function Section({
   className = "",
   sectionRef,
   deferPaint = false,
-  withCrop = true,
+  withCrop = false,
 }: {
   id: string;
   children: ReactNode;
@@ -305,42 +491,72 @@ function Section({
     <section
       ref={sectionRef}
       id={id}
-      className={`relative py-32 lg:py-44 ${withCrop ? "crop-marks" : ""} ${deferPaint ? "cv-auto" : ""} ${className}`}
+      className={`relative scroll-mt-24 py-32 lg:py-44 ${withCrop ? "crop-marks" : ""} ${deferPaint ? "cv-auto" : ""} ${className}`}
     >
       <div className="mx-auto max-w-7xl px-6 sm:px-8 lg:px-12">{children}</div>
     </section>
   );
 }
 
+function SectionOpener({
+  eyebrow,
+  title,
+  children,
+}: {
+  eyebrow: string;
+  title: ReactNode;
+  children?: ReactNode;
+}) {
+  const variants = useRevealVariants();
+  const stagger = useStaggerParent();
+  return (
+    <m.div
+      initial="hidden"
+      whileInView="show"
+      viewport={{ once: true, amount: 0.15 }}
+      variants={stagger}
+      className="max-w-3xl"
+    >
+      <m.div variants={variants} className="mb-8">
+        <ColorBar className="max-w-[180px]" />
+      </m.div>
+      <m.div variants={variants}>
+        <Eyebrow>{eyebrow}</Eyebrow>
+      </m.div>
+      <m.h2 variants={variants} className="section-title mt-6">
+        {title}
+      </m.h2>
+      {children}
+    </m.div>
+  );
+}
+
 function Story() {
   const variants = useRevealVariants();
-  const reduce = useReducedMotion();
+  const stagger = useStaggerParent();
   return (
     <Section id="story" deferPaint>
-      <div className="mb-10">
-        <ColorBar className="max-w-[180px]" />
-      </div>
       <div className="grid gap-16 lg:grid-cols-12">
-        <m.div
-          initial={reduce ? false : { opacity: 0, y: 8 }}
-          whileInView={{ opacity: 1, y: 0 }}
-          viewport={{ once: true, amount: 0.15 }}
-          transition={{ duration: reduce ? 0 : 0.55 }}
-          className="lg:col-span-5"
-        >
-          <Eyebrow>Our Story</Eyebrow>
-          <h2 className="mt-6 font-serif text-[40px] leading-[1.1] tracking-tight md:text-5xl lg:text-[60px]">
-            A print shop and{" "}
-            <span className="ink-accent italic text-[color:var(--color-royal)]">bindery</span>,
-            under one roof.
-          </h2>
-        </m.div>
+        <div className="lg:col-span-5">
+          <SectionOpener
+            eyebrow="Our Story"
+            title={
+              <>
+                A print shop and{" "}
+                <span className="ink-accent italic text-[color:var(--color-royal)]">
+                  bindery
+                </span>
+                , under one roof.
+              </>
+            }
+          />
+        </div>
         <m.div
           initial="hidden"
           whileInView="show"
           viewport={{ once: true, amount: 0.15 }}
-          variants={{ show: { transition: { staggerChildren: reduce ? 0 : 0.06 } } }}
-          className="lg:col-span-6 lg:col-start-7"
+          variants={stagger}
+          className="lg:col-span-6 lg:col-start-7 lg:pt-16"
         >
           <m.p
             variants={variants}
@@ -380,42 +596,48 @@ function Story() {
 }
 
 function WhatWePrint() {
-  const items = [
-    [
-      "Notebooks",
-      "Soft and hard cover, ruled or dot-grid — sized for a desk, a bag, or a branded run.",
-    ],
-    [
-      "Diaries",
-      "Daily and weekly planners with dated pages, printed and bound for a full year of use.",
-    ],
-    [
-      "Journals",
-      "Unlined and lightly ruled pages for notes, sketches and long-form writing.",
-    ],
-    [
-      "Corporate & Custom",
-      "Branded diaries and notebooks for teams, clients, schools and year-end gifting.",
-    ],
+  const featured = {
+    n: "01",
+    title: "Notebooks",
+    desc: "Soft and hard cover, ruled or dot-grid — sized for a desk, a bag, or a branded run. Printed and bound in Stafford.",
+  };
+  const supporting = [
+    {
+      n: "02",
+      title: "Diaries",
+      desc: "Daily and weekly planners with dated pages, printed and bound for a full year of use.",
+    },
+    {
+      n: "03",
+      title: "Journals",
+      desc: "Unlined and lightly ruled pages for notes, sketches and long-form writing.",
+    },
+    {
+      n: "04",
+      title: "Corporate & Custom",
+      desc: "Branded diaries and notebooks for teams, clients, schools and year-end gifting.",
+    },
   ] as const;
+
   const variants = useRevealVariants();
-  const reduce = useReducedMotion();
+  const stagger = useStaggerParent();
+
   return (
-    <Section id="print" deferPaint>
+    <Section id="print" deferPaint withCrop>
       <m.div
         initial="hidden"
         whileInView="show"
         viewport={{ once: true, amount: 0.15 }}
-        variants={{ show: { transition: { staggerChildren: reduce ? 0 : 0.05 } } }}
+        variants={stagger}
         className="max-w-3xl"
       >
+        <m.div variants={variants} className="mb-8">
+          <ColorBar className="max-w-[180px]" />
+        </m.div>
         <m.div variants={variants}>
           <Eyebrow>What We Print</Eyebrow>
         </m.div>
-        <m.h2
-          variants={variants}
-          className="mt-6 font-serif text-[40px] leading-[1.1] tracking-tight md:text-5xl lg:text-[60px]"
-        >
+        <m.h2 variants={variants} className="section-title mt-6">
           Notebooks, diaries — printed and bound to order.
         </m.h2>
         <m.p
@@ -426,38 +648,117 @@ function WhatWePrint() {
           across four areas — printed and bound in Johannesburg.
         </m.p>
       </m.div>
+
+      {/* Mobile: divided list */}
       <m.div
         initial="hidden"
         whileInView="show"
-        viewport={{ once: true, amount: 0.15 }}
-        variants={{ show: { transition: { staggerChildren: reduce ? 0 : 0.05 } } }}
-        className="mt-16 grid gap-5 sm:grid-cols-2 lg:grid-cols-4 lg:gap-6"
+        viewport={{ once: true, amount: 0.12 }}
+        variants={stagger}
+        className="mt-12 divide-y divide-[rgba(0,120,168,0.12)] border-y border-[rgba(0,120,168,0.12)] md:hidden"
       >
-        {items.map(([title, desc], i) => (
-          <m.div key={title} variants={variants} className="notebook-card">
-            <div className="flex items-baseline justify-between gap-3">
-              <span className="font-serif text-[42px] leading-none tracking-tight text-[rgba(0,120,168,0.14)]">
-                {String(i + 1).padStart(2, "0")}
+        {[featured, ...supporting].map((item) => (
+          <m.a
+            key={item.title}
+            variants={variants}
+            href="#contact"
+            onClick={(e) => {
+              e.preventDefault();
+              scrollTo("contact");
+            }}
+            className="flex w-full items-start gap-4 py-6 text-left focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-[color:var(--color-royal)]"
+          >
+            <span className="font-serif text-[28px] leading-none tracking-tight text-[rgba(0,120,168,0.28)]">
+              {item.n}
+            </span>
+            <span className="min-w-0 flex-1">
+              <span className="block font-serif text-[26px] leading-tight tracking-tight text-[color:var(--color-ink)]">
+                {item.title}
+              </span>
+              <span className="mt-2 block text-[15px] leading-relaxed text-[color:var(--color-body)]">
+                {item.desc}
+              </span>
+              <span className="mt-3 inline-block text-[11px] font-medium uppercase tracking-[0.16em] text-[color:var(--color-eco-deep)]">
+                Discuss this product →
+              </span>
+            </span>
+          </m.a>
+        ))}
+      </m.div>
+
+      {/* Desktop: asymmetric editorial grid */}
+      <m.div
+        initial="hidden"
+        whileInView="show"
+        viewport={{ once: true, amount: 0.12 }}
+        variants={stagger}
+        className="mt-16 hidden gap-5 md:grid md:grid-cols-12"
+      >
+        <m.a
+          variants={variants}
+          href="#contact"
+          onClick={(e) => {
+            e.preventDefault();
+            scrollTo("contact");
+          }}
+          className="product-feature md:col-span-7 lg:col-span-7"
+        >
+          <div>
+            <div className="flex items-baseline gap-4">
+              <span className="font-serif text-[56px] leading-none tracking-tight text-[rgba(0,120,168,0.16)]">
+                {featured.n}
               </span>
               <span
                 aria-hidden
                 className="h-px flex-1 bg-[rgba(0,120,168,0.12)]"
               />
             </div>
-            <h3 className="mt-8 font-serif text-[32px] leading-[1.1] tracking-tight text-[color:var(--color-ink)]">
-              {title}
+            <h3 className="mt-8 font-serif text-[42px] leading-[1.08] tracking-tight text-[color:var(--color-ink)] lg:text-[48px]">
+              {featured.title}
             </h3>
-            <p className="mt-4 text-[15px] leading-relaxed text-[color:var(--color-body)] md:text-[16px]">
-              {desc}
+            <p className="mt-5 max-w-md text-[16px] leading-relaxed text-[color:var(--color-body)] md:text-[17px]">
+              {featured.desc}
             </p>
-            <div
-              aria-hidden
-              className="mt-auto pt-10 text-[11px] font-medium uppercase tracking-[0.18em] text-[color:var(--color-eco-deep)]"
+          </div>
+          <div className="mt-12 flex items-center justify-between gap-4 border-t border-[rgba(0,120,168,0.1)] pt-5">
+            <span className="text-[11px] font-medium uppercase tracking-[0.18em] text-[color:var(--color-eco-deep)]">
+              Discuss this product
+            </span>
+            <span aria-hidden className="text-[color:var(--color-royal)]">
+              →
+            </span>
+          </div>
+        </m.a>
+
+        <div className="flex flex-col gap-4 md:col-span-5">
+          {supporting.map((item) => (
+            <m.a
+              key={item.title}
+              variants={variants}
+              href="#contact"
+              onClick={(e) => {
+                e.preventDefault();
+                scrollTo("contact");
+              }}
+              className="product-panel"
             >
-              In-house
-            </div>
-          </m.div>
-        ))}
+              <div className="flex items-baseline gap-3">
+                <span className="font-serif text-[24px] leading-none tracking-tight text-[rgba(0,120,168,0.22)]">
+                  {item.n}
+                </span>
+                <h3 className="font-serif text-[24px] leading-tight tracking-tight text-[color:var(--color-ink)]">
+                  {item.title}
+                </h3>
+              </div>
+              <p className="mt-3 text-[15px] leading-relaxed text-[color:var(--color-body)]">
+                {item.desc}
+              </p>
+              <span className="mt-4 inline-block text-[11px] font-medium uppercase tracking-[0.16em] text-[color:var(--color-eco-deep)]">
+                Discuss this product →
+              </span>
+            </m.a>
+          ))}
+        </div>
       </m.div>
     </Section>
   );
@@ -491,13 +792,16 @@ function HowWeWork({
     ],
   ] as const;
   const reduce = useReducedMotion();
+  const variants = useRevealVariants();
+  const stagger = useStaggerParent();
   const lineRef = useRef<HTMLDivElement | null>(null);
   const { scrollYProgress } = useScroll({
     target: lineRef,
     offset: ["start 80%", "end 40%"],
   });
-  const markerLeft = useTransform(scrollYProgress, [0, 1], ["0%", "100%"]);
-  const fillWidth = useTransform(scrollYProgress, [0, 1], ["0%", "100%"]);
+  // Transform-only progress (scaleX + translateX), never width/left
+  const fillScale = useTransform(scrollYProgress, [0, 1], [0, 1]);
+  const markerX = useTransform(scrollYProgress, [0, 1], ["0%", "100%"]);
 
   return (
     <Section
@@ -506,28 +810,19 @@ function HowWeWork({
       sectionRef={sectionRef}
       deferPaint
     >
-      <div className="mb-10">
-        <ColorBar className="max-w-[180px]" />
-      </div>
       <div className="grid gap-16 lg:grid-cols-12">
-        <m.div
-          initial={reduce ? false : { opacity: 0, y: 8 }}
-          whileInView={{ opacity: 1, y: 0 }}
-          viewport={{ once: true, amount: 0.15 }}
-          transition={{ duration: reduce ? 0 : 0.55 }}
-          className="lg:col-span-5"
-        >
-          <Eyebrow>How We Work</Eyebrow>
-          <h2 className="mt-6 max-w-md font-serif text-[40px] leading-[1.1] tracking-tight md:text-5xl lg:text-[60px]">
-            From plates to pages, bound by hand.
-          </h2>
-        </m.div>
+        <div className="lg:col-span-5">
+          <SectionOpener
+            eyebrow="How We Work"
+            title="From plates to pages, bound by hand."
+          />
+        </div>
         <m.p
-          initial={reduce ? false : { opacity: 0, y: 8 }}
-          whileInView={{ opacity: 1, y: 0 }}
+          initial="hidden"
+          whileInView="show"
           viewport={{ once: true, amount: 0.15 }}
-          transition={{ duration: reduce ? 0 : 0.55, delay: reduce ? 0 : 0.08 }}
-          className="text-[18px] leading-relaxed text-[color:var(--color-body)] lg:col-span-6 lg:col-start-7"
+          variants={variants}
+          className="text-[18px] leading-relaxed text-[color:var(--color-body)] lg:col-span-6 lg:col-start-7 lg:pt-24"
         >
           We are not a reseller of imported stock. Alpine-eco runs the press and the
           bindery — which means tighter quality control, clearer turnaround, and the
@@ -542,32 +837,31 @@ function HowWeWork({
         />
         <m.div
           aria-hidden
-          className="absolute left-0 top-6 hidden h-px lg:block"
+          className="absolute left-0 top-6 hidden h-px origin-left lg:block"
           style={{
-            width: fillWidth,
+            width: "100%",
+            scaleX: fillScale,
             background: "linear-gradient(90deg, var(--color-royal), var(--color-eco))",
-            willChange: "width",
           }}
         />
         {!reduce && (
           <m.div
             aria-hidden
             className="absolute top-[14px] hidden h-5 w-4 -translate-x-1/2 rounded-[1px] border border-[rgba(0,120,168,0.35)] bg-white shadow-sm lg:block"
-            style={{ left: markerLeft, willChange: "left" }}
+            style={{ x: markerX, left: 0 }}
           >
             <div className="mx-auto mt-1 h-2 w-[2px] bg-[color:var(--color-eco)]" />
           </m.div>
         )}
-        <div className="grid gap-12 sm:grid-cols-2 lg:grid-cols-4">
-          {steps.map(([n, title, desc], i) => (
-            <m.div
-              key={n}
-              initial={reduce ? false : { opacity: 0, y: 12 }}
-              whileInView={{ opacity: 1, y: 0 }}
-              viewport={{ once: true, amount: 0.15 }}
-              transition={{ duration: reduce ? 0 : 0.5, delay: reduce ? 0 : i * 0.05 }}
-              className="relative"
-            >
+        <m.div
+          initial="hidden"
+          whileInView="show"
+          viewport={{ once: true, amount: 0.15 }}
+          variants={stagger}
+          className="grid gap-12 sm:grid-cols-2 lg:grid-cols-4"
+        >
+          {steps.map(([n, title, desc]) => (
+            <m.div key={n} variants={variants} className="relative">
               <div
                 aria-hidden
                 className="mb-6 hidden h-3 w-3 rounded-full border border-[rgba(0,120,168,0.4)] bg-white lg:block"
@@ -583,7 +877,7 @@ function HowWeWork({
               </p>
             </m.div>
           ))}
-        </div>
+        </m.div>
       </div>
     </Section>
   );
@@ -591,49 +885,51 @@ function HowWeWork({
 
 function CTA() {
   const variants = useRevealVariants();
-  const reduce = useReducedMotion();
+  const stagger = useStaggerParent();
   return (
     <Section id="contact" deferPaint>
       <m.div
         initial="hidden"
         whileInView="show"
         viewport={{ once: true, amount: 0.15 }}
-        variants={{ show: { transition: { staggerChildren: reduce ? 0 : 0.06 } } }}
-        className="mx-auto max-w-3xl text-center"
+        variants={stagger}
+        className="grid gap-12 lg:grid-cols-12"
       >
-        <m.div variants={variants} className="flex justify-center">
-          <Eyebrow>Get In Touch</Eyebrow>
-        </m.div>
-        <m.h2
+        <div className="lg:col-span-6">
+          <m.div variants={variants} className="mb-8">
+            <ColorBar className="max-w-[180px]" />
+          </m.div>
+          <m.div variants={variants}>
+            <Eyebrow>Get In Touch</Eyebrow>
+          </m.div>
+          <m.h2 variants={variants} className="section-title mt-6">
+            Got a print or binding{" "}
+            <span className="ink-accent italic text-[color:var(--color-royal)]">job</span>{" "}
+            in mind?
+          </m.h2>
+          <m.p
+            variants={variants}
+            className="mt-6 max-w-xl text-[18px] leading-relaxed text-[color:var(--color-body)]"
+          >
+            Enquire for bulk orders, corporate runs or a custom print and binding quote.
+            We are based in Stafford, Johannesburg.
+          </m.p>
+        </div>
+        <m.div
           variants={variants}
-          className="mt-6 font-serif text-[40px] leading-[1.1] tracking-tight md:text-5xl lg:text-[68px]"
+          className="flex flex-col justify-end gap-6 lg:col-span-5 lg:col-start-8"
         >
-          Got a print or binding{" "}
-          <span className="ink-accent italic text-[color:var(--color-royal)]">job</span> in mind?
-        </m.h2>
-        <m.p
-          variants={variants}
-          className="mt-6 text-[18px] leading-relaxed text-[color:var(--color-body)]"
-        >
-          Enquire for bulk orders, corporate runs or a custom print and binding quote.
-          We are based in Stafford, Johannesburg.
-        </m.p>
-        <m.div variants={variants} className="mt-10 flex flex-wrap justify-center gap-3">
-          <a href={`mailto:${EMAIL}`} className="btn-primary">
-            Email Alpine-eco
-          </a>
-          <a href={`tel:${PHONE_TEL}`} className="btn-ghost">
-            Call {PHONE_DISPLAY}
-          </a>
-        </m.div>
-        <m.p
-          variants={variants}
-          className="mt-8 text-[14px] leading-relaxed text-[color:var(--color-body)]"
-        >
-          {ADDRESS}
-        </m.p>
-        <m.div variants={variants} className="mt-10 flex justify-center">
-          <ColorBar className="max-w-[220px]" />
+          <div className="flex flex-wrap gap-3">
+            <a href={`mailto:${EMAIL}`} className="btn-primary">
+              Email Alpine-eco
+            </a>
+            <a href={`tel:${PHONE_TEL}`} className="btn-ghost">
+              Call {PHONE_DISPLAY}
+            </a>
+          </div>
+          <address className="not-italic text-[15px] leading-relaxed text-[color:var(--color-body)] md:text-[16px]">
+            {ADDRESS}
+          </address>
         </m.div>
       </m.div>
     </Section>
@@ -644,6 +940,9 @@ function Footer() {
   const year = new Date().getFullYear();
   return (
     <footer className="cv-auto border-t border-[rgba(0,120,168,0.14)] bg-white/70 py-20">
+      <div className="mx-auto max-w-7xl px-6 sm:px-8 lg:px-12">
+        <ColorBar className="mb-10 max-w-[160px]" />
+      </div>
       <div className="mx-auto grid max-w-7xl gap-12 px-6 sm:px-8 lg:grid-cols-12 lg:px-12">
         <div className="lg:col-span-5">
           <Logo size="footer" />
@@ -653,32 +952,31 @@ function Footer() {
           </p>
         </div>
         <div className="lg:col-span-3 lg:col-start-7">
-          <div className="eyebrow">Explore</div>
+          <Eyebrow>Explore</Eyebrow>
           <ul className="mt-5 space-y-3 text-[15px] text-[color:var(--color-ink-2)] md:text-[16px]">
-            {[
-              ["story", "Story"],
-              ["print", "What We Print"],
-              ["work", "How We Work"],
-              ["contact", "Contact"],
-            ].map(([id, label]) => (
+            {NAV_LINKS.map(([id, label]) => (
               <li key={id}>
-                <button
-                  onClick={() => scrollTo(id)}
-                  className="transition-colors hover:text-[color:var(--color-royal)]"
+                <a
+                  href={`#${id}`}
+                  onClick={(e) => {
+                    e.preventDefault();
+                    scrollTo(id);
+                  }}
+                  className="gradient-underline transition-colors hover:text-[color:var(--color-royal)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-3 focus-visible:outline-[color:var(--color-royal)]"
                 >
                   {label}
-                </button>
+                </a>
               </li>
             ))}
           </ul>
         </div>
         <div className="lg:col-span-3">
-          <div className="eyebrow">Contact</div>
+          <Eyebrow>Contact</Eyebrow>
           <ul className="mt-5 space-y-3 text-[15px] text-[color:var(--color-ink-2)] md:text-[16px]">
             <li>
               <a
                 href={`mailto:${EMAIL}`}
-                className="transition-colors hover:text-[color:var(--color-royal)]"
+                className="gradient-underline transition-colors hover:text-[color:var(--color-royal)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-3 focus-visible:outline-[color:var(--color-royal)]"
               >
                 {EMAIL}
               </a>
@@ -686,12 +984,16 @@ function Footer() {
             <li>
               <a
                 href={`tel:${PHONE_TEL}`}
-                className="transition-colors hover:text-[color:var(--color-royal)]"
+                className="gradient-underline transition-colors hover:text-[color:var(--color-royal)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-3 focus-visible:outline-[color:var(--color-royal)]"
               >
                 {PHONE_DISPLAY}
               </a>
             </li>
-            <li className="text-[color:var(--color-body)] leading-relaxed">{ADDRESS}</li>
+            <li>
+              <address className="not-italic leading-relaxed text-[color:var(--color-body)]">
+                {ADDRESS}
+              </address>
+            </li>
           </ul>
         </div>
       </div>
@@ -700,6 +1002,9 @@ function Footer() {
           Set in Cormorant Garamond &amp; Inter · Printed &amp; bound in Johannesburg · ©{" "}
           {year} Alpine-eco Notebooks &amp; Diaries
         </p>
+        <div className="mt-6">
+          <ColorBar className="max-w-[120px]" />
+        </div>
       </div>
     </footer>
   );
@@ -713,6 +1018,9 @@ function Index() {
 
   return (
     <LazyMotion features={domAnimation}>
+      <a href="#main-content" className="skip-link">
+        Skip to content
+      </a>
       <Suspense fallback={null}>
         {motionMode === "full" ? (
           <LazyMotionLayer
@@ -724,10 +1032,10 @@ function Index() {
           <LazyMotionBackdrop />
         ) : null}
       </Suspense>
-      <div className="relative z-20 isolate min-h-[100dvh] bg-transparent">
+      <div className="relative z-20 isolate min-h-[100dvh] overflow-x-clip bg-transparent">
         <RulerProgress />
         <Nav />
-        <main>
+        <main id="main-content">
           <Hero sectionRef={heroRef} />
           <div ref={sheetsRef}>
             <Story />

@@ -3,7 +3,9 @@ import {
   type ErrorInfo,
   type ReactNode,
   type RefObject,
+  useEffect,
   useRef,
+  useState,
 } from "react";
 import {
   motion,
@@ -82,32 +84,81 @@ class MotionErrorBoundary extends Component<
   }
   componentDidCatch(_e: Error, _i: ErrorInfo) {}
   render() {
-    if (this.state.failed) return null;
+    if (this.state.failed) return <MotionBackdrop />;
     return this.props.children;
   }
 }
 
-/** Discrete show/hide — never animate opacity on preserve-3d trees (kills GPU smoothness). */
-function useSceneGate(
+/**
+ * Cross-fade opacity on a flat 2D wrapper only — never on preserve-3d children.
+ * Initialized from progress.get() so deep links / refresh land on the right scene.
+ */
+function useSceneFade(
   progress: MotionValue<number>,
-  range: { min?: number; max: number },
-  initial: "visible" | "hidden" = "hidden",
+  fadeIn: [number, number],
+  fadeOut: [number, number],
 ) {
-  const ref = useRef<HTMLDivElement>(null);
-  const min = range.min ?? -Infinity;
-  const max = range.max;
-  useMotionValueEvent(progress, "change", (v) => {
-    const el = ref.current;
+  const sample = (v: number) => {
+    if (v <= fadeIn[0]) return 0;
+    if (v < fadeIn[1]) return (v - fadeIn[0]) / (fadeIn[1] - fadeIn[0]);
+    if (v <= fadeOut[0]) return 1;
+    if (v < fadeOut[1]) return 1 - (v - fadeOut[0]) / (fadeOut[1] - fadeOut[0]);
+    return 0;
+  };
+  return useTransform(progress, sample);
+}
+
+function SceneShell({
+  opacity,
+  className,
+  children,
+  paused,
+}: {
+  opacity: MotionValue<number>;
+  className?: string;
+  children: ReactNode;
+  paused?: boolean;
+}) {
+  const shellRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const el = shellRef.current;
     if (!el) return;
-    const show = v > min && v < max;
-    const next = show ? "visible" : "hidden";
-    if (el.style.visibility !== next) el.style.visibility = next;
+    const sync = (v: number) => {
+      el.style.willChange = v > 0.02 && !paused ? "opacity, transform" : "auto";
+    };
+    sync(opacity.get());
+  }, [opacity, paused]);
+
+  useMotionValueEvent(opacity, "change", (v) => {
+    const el = shellRef.current;
+    if (!el) return;
+    el.style.willChange = v > 0.02 && !paused ? "opacity, transform" : "auto";
   });
-  return { ref, initial };
+
+  return (
+    <motion.div
+      ref={shellRef}
+      className={className}
+      style={{
+        opacity: paused ? 0 : opacity,
+      }}
+    >
+      {children}
+    </motion.div>
+  );
 }
 
 function MotionLayerInner({ heroRef, sheetsRef, workRef }: SectionRefs) {
   const reduce = useReducedMotion();
+  const [paused, setPaused] = useState(false);
+
+  useEffect(() => {
+    const onVis = () => setPaused(document.hidden);
+    onVis();
+    document.addEventListener("visibilitychange", onVis);
+    return () => document.removeEventListener("visibilitychange", onVis);
+  }, []);
 
   const { scrollYProgress: heroProgress } = useScroll({
     target: heroRef,
@@ -157,9 +208,10 @@ function MotionLayerInner({ heroRef, sheetsRef, workRef }: SectionRefs) {
     [reduce ? 0 : -6, reduce ? 0 : 10],
   );
 
-  const bookGate = useSceneGate(heroProgress, { max: 0.92 }, "visible");
-  const sheetsGate = useSceneGate(sheetsProgress, { min: 0.08, max: 0.9 });
-  const bindGate = useSceneGate(workProgress, { min: 0.1, max: 0.92 });
+  // Overlapping handoffs — brief cross-fade instead of hard pops
+  const bookOpacity = useSceneFade(heroProgress, [-0.01, 0], [0.72, 0.96]);
+  const sheetsOpacity = useSceneFade(sheetsProgress, [0.02, 0.12], [0.78, 0.96]);
+  const bindOpacity = useSceneFade(workProgress, [0.04, 0.14], [0.8, 0.98]);
 
   return (
     <div
@@ -177,54 +229,48 @@ function MotionLayerInner({ heroRef, sheetsRef, workRef }: SectionRefs) {
           transform: "translateZ(0)",
         }}
       >
-        {/* BOOK — transform only (no opacity on 3D) */}
-        <motion.div
-          ref={bookGate.ref}
+        {/* BOOK — opacity on flat shell only */}
+        <SceneShell
+          opacity={bookOpacity}
+          paused={paused}
           className="absolute top-[18vh] left-[52%] right-0 flex justify-center md:top-[14vh] lg:top-[12vh]"
-          style={{
-            y: bookY,
-            visibility: bookGate.initial,
-            willChange: "transform",
-          }}
         >
-          <div className="origin-center scale-[0.68] sm:scale-[0.82] md:scale-[0.95] lg:scale-[1.08]">
-            <Notebook tiltX={bookTiltX} tiltY={bookTiltY} />
-          </div>
-        </motion.div>
+          <motion.div style={{ y: bookY }}>
+            <div className="origin-center scale-[0.68] sm:scale-[0.82] md:scale-[0.95] lg:scale-[1.08]">
+              <Notebook tiltX={bookTiltX} tiltY={bookTiltY} />
+            </div>
+          </motion.div>
+        </SceneShell>
 
         {/* SHEETS */}
-        <motion.div
-          ref={sheetsGate.ref}
+        <SceneShell
+          opacity={sheetsOpacity}
+          paused={paused}
           className="absolute top-[10vh] left-[1vw] hidden w-[min(480px,46vw)] justify-start sm:flex md:left-[2vw] lg:left-[3vw]"
-          style={{
-            y: sheetsY,
-            visibility: sheetsGate.initial,
-            willChange: "transform",
-          }}
         >
-          <div className="origin-center scale-[0.85] md:scale-[1] lg:scale-[1.15]">
-            <PaperFan
-              progress={sheetsProgress}
-              groupRot={sheetsRot}
-              reduce={!!reduce}
-            />
-          </div>
-        </motion.div>
+          <motion.div style={{ y: sheetsY }}>
+            <div className="origin-center scale-[0.85] md:scale-[1] lg:scale-[1.15]">
+              <PaperFan
+                progress={sheetsProgress}
+                groupRot={sheetsRot}
+                reduce={!!reduce}
+              />
+            </div>
+          </motion.div>
+        </SceneShell>
 
         {/* BINDING */}
-        <motion.div
-          ref={bindGate.ref}
+        <SceneShell
+          opacity={bindOpacity}
+          paused={paused}
           className="absolute top-[8vh] right-[1vw] hidden w-[min(520px,48vw)] justify-end sm:flex md:right-[3vw] lg:right-[5vw]"
-          style={{
-            y: bindY,
-            visibility: bindGate.initial,
-            willChange: "transform",
-          }}
         >
-          <div className="origin-center scale-[0.9] md:scale-[1.05] lg:scale-[1.2]">
-            <BookPile rotY={bindRot} />
-          </div>
-        </motion.div>
+          <motion.div style={{ y: bindY }}>
+            <div className="origin-center scale-[0.9] md:scale-[1.05] lg:scale-[1.2]">
+              <BookPile rotY={bindRot} />
+            </div>
+          </motion.div>
+        </SceneShell>
       </div>
     </div>
   );
@@ -258,7 +304,6 @@ function Notebook({
         transformStyle: "preserve-3d",
         rotateX: tiltX,
         rotateY: tiltY,
-        willChange: "transform",
         backfaceVisibility: "hidden",
       }}
     >
@@ -452,7 +497,6 @@ function PaperFan({
         position: "relative",
         transformStyle: "preserve-3d",
         rotateY: groupRot,
-        willChange: "transform",
       }}
     >
       <div
@@ -482,17 +526,21 @@ function FanSheet({
   progress: MotionValue<number>;
   reduce: boolean;
 }) {
-  const driftX = useTransform(progress, [0.18, 0.8], [0, reduce ? 0 : base.spread]);
-  const driftZ = useTransform(progress, [0.18, 0.8], [0, reduce ? 0 : 18 + index * 8]);
-  const driftRz = useTransform(
+  const x = useTransform(
     progress,
     [0.18, 0.8],
-    [0, reduce ? 0 : index % 2 === 0 ? 5 : -4],
+    [base.x, base.x + (reduce ? 0 : base.spread)],
   );
-
-  const x = useTransform(driftX, (d) => base.x + d);
-  const z = useTransform(driftZ, (d) => base.z + d);
-  const rz = useTransform(driftRz, (d) => base.rz + d);
+  const z = useTransform(
+    progress,
+    [0.18, 0.8],
+    [base.z, base.z + (reduce ? 0 : 18 + index * 8)],
+  );
+  const rz = useTransform(
+    progress,
+    [0.18, 0.8],
+    [base.rz, base.rz + (reduce ? 0 : index % 2 === 0 ? 5 : -4)],
+  );
 
   return (
     <motion.div
@@ -509,7 +557,6 @@ function FanSheet({
         rotateY: base.ry,
         rotateZ: rz,
         transformStyle: "preserve-3d",
-        willChange: "transform",
       }}
     >
       {/* Paper face — keep paint light for scroll smoothness */}
@@ -611,7 +658,6 @@ function BookPile({ rotY }: { rotY: MotionValue<number> | number }) {
         position: "relative",
         transformStyle: "preserve-3d",
         rotateY: rotY,
-        willChange: "transform",
         backfaceVisibility: "hidden",
       }}
     >
