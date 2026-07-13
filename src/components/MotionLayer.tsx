@@ -107,20 +107,16 @@ function MotionLayerInner({ heroRef, sheetsRef, workRef }: SectionRefs) {
   });
 
   const bookOpacity = useTransform(heroProgress, [0, 0.6, 0.9, 1], [1, 1, 0.15, 0]);
-  const bookY = useTransform(heroProgress, [0, 1], [0, -40]);
+  const bookY = useTransform(heroProgress, [0, 1], [0, -36]);
+  const bookTiltY = useTransform(heroProgress, (v: number) =>
+    reduce ? -8 : -14 + easeOut(Math.min(1, v / 0.8)) * 10,
+  );
+  const bookTiltX = useTransform(heroProgress, (v: number) =>
+    reduce ? 10 : 12 - easeOut(Math.min(1, v / 0.8)) * 4,
+  );
   const bookVisibility = useTransform(bookOpacity, (v) =>
     v < 0.02 ? "hidden" : "visible",
   );
-
-  // Open while hero is on screen: -65° → -12° / 65° → 12°
-  const leftRot = useTransform(heroProgress, (v: number) => {
-    if (reduce) return -14;
-    return -65 + easeOut(Math.min(1, v / 0.7)) * 53;
-  });
-  const rightRot = useTransform(heroProgress, (v: number) => {
-    if (reduce) return 14;
-    return 65 - easeOut(Math.min(1, v / 0.7)) * 53;
-  });
 
   const sheetsOpacity = useTransform(
     sheetsProgress,
@@ -165,8 +161,8 @@ function MotionLayerInner({ heroRef, sheetsRef, workRef }: SectionRefs) {
             visibility: bookVisibility,
           }}
         >
-          <div className="origin-top scale-[0.55] sm:scale-[0.7] md:scale-[0.85] lg:scale-100">
-            <Notebook leftRot={leftRot} rightRot={rightRot} />
+          <div className="origin-center scale-[0.68] sm:scale-[0.82] md:scale-[0.95] lg:scale-[1.08]">
+            <Notebook tiltX={bookTiltX} tiltY={bookTiltY} />
           </div>
         </motion.div>
 
@@ -207,218 +203,207 @@ function MotionLayerInner({ heroRef, sheetsRef, workRef }: SectionRefs) {
 }
 
 /* ─────────────────────────────────────────────
- * Notebook — one product, contained open
- * Covers only; pages are a fixed wedge between them (no flying leaves)
+ * Notebook — locked open spread (no hinged covers)
+ * Scroll only tilts the whole object so the silhouette stays readable
  * ───────────────────────────────────────────── */
 
-const BLUE =
-  "linear-gradient(150deg, #006088 0%, #0078A8 45%, #2A9AD0 100%)";
+const COVER_BLUE = "#0078A8";
+const COVER_DEEP = "#08648F";
+const PAGE_CREAM = "#FBF7EF";
+const PAGE_RULE = "rgba(13,26,46,0.08)";
+const PAGE_MARGIN = "rgba(190, 70, 70, 0.2)";
+const ECO_RULE = "rgba(104,184,72,0.55)";
 
 function Notebook({
-  leftRot,
-  rightRot,
+  tiltX,
+  tiltY,
 }: {
-  leftRot: MotionValue<number>;
-  rightRot: MotionValue<number>;
+  tiltX: MotionValue<number> | number;
+  tiltY: MotionValue<number> | number;
 }) {
   return (
-    <div
+    <motion.div
       style={{
-        width: 420,
-        height: 300,
+        width: 520,
+        height: 340,
         position: "relative",
         transformStyle: "preserve-3d",
-        transform: "rotateX(20deg) rotateY(-18deg)",
+        rotateX: tiltX,
+        rotateY: tiltY,
       }}
     >
-      {/* Ground shadow */}
-      <div
-        style={{
-          position: "absolute",
-          left: "15%",
-          right: "15%",
-          bottom: -14,
-          height: 24,
-          background:
-            "radial-gradient(ellipse, rgba(13,26,46,0.22) 0%, transparent 70%)",
-          transform: "translateZ(-24px)",
-        }}
-      />
-
-      {/* Static page block (center) — stays put, covers open around it */}
+      {/* Ground shadow — no filter (keeps preserve-3d intact) */}
       <div
         style={{
           position: "absolute",
           left: "8%",
           right: "8%",
+          bottom: -10,
+          height: 36,
+          background:
+            "radial-gradient(ellipse at center, rgba(13,26,46,0.22) 0%, transparent 70%)",
+          transform: "translateZ(-40px)",
+        }}
+      />
+
+      {/* Hard-cover base plate (sits just behind the pages) */}
+      <div
+        style={{
+          position: "absolute",
+          left: 10,
+          right: 10,
           top: 14,
-          bottom: 14,
+          bottom: 18,
+          borderRadius: 10,
+          background: `linear-gradient(145deg, ${COVER_DEEP}, ${COVER_BLUE} 55%, #1A8FBE)`,
+          boxShadow:
+            "0 28px 48px -22px rgba(13,26,46,0.5), inset 0 1px 0 rgba(255,255,255,0.2)",
+          transform: "translateZ(-6px)",
+        }}
+      />
+
+      {/* Left page — gentle open angle */}
+      <div
+        style={{
+          position: "absolute",
+          left: 28,
+          top: 28,
+          bottom: 34,
+          width: "44%",
+          transformOrigin: "right center",
+          transform: "rotateY(9deg) translateZ(4px)",
           transformStyle: "preserve-3d",
-          transform: "translateZ(1px)",
         }}
       >
-        <div
-          style={{
-            position: "absolute",
-            inset: 0,
-            display: "flex",
-            background: "#F7F3EA",
-            borderRadius: 3,
-            boxShadow: "0 12px 28px -16px rgba(13,26,46,0.35)",
-            overflow: "hidden",
-          }}
-        >
-          <div style={{ flex: 1, borderRight: "1px solid rgba(13,26,46,0.06)", position: "relative" }}>
-            <div
-              style={{
-                position: "absolute",
-                left: 16,
-                right: 12,
-                top: 28,
-                bottom: 16,
-                backgroundImage:
-                  "repeating-linear-gradient(0deg, transparent 0 15px, rgba(13,26,46,0.07) 15px 16px)",
-              }}
-            />
-            <div
-              style={{
-                position: "absolute",
-                left: 16,
-                right: 12,
-                top: 22,
-                height: 1.5,
-                background: "rgba(104,184,72,0.4)",
-              }}
-            />
-          </div>
-          <div style={{ flex: 1, position: "relative" }}>
-            <div
-              style={{
-                position: "absolute",
-                left: 12,
-                right: 16,
-                top: 28,
-                bottom: 16,
-                backgroundImage:
-                  "repeating-linear-gradient(0deg, transparent 0 15px, rgba(13,26,46,0.07) 15px 16px)",
-              }}
-            />
-            <div
-              style={{
-                position: "absolute",
-                left: 12,
-                right: 16,
-                top: 22,
-                height: 1.5,
-                background: "rgba(104,184,72,0.4)",
-              }}
-            />
-          </div>
-        </div>
+        <PageCard side="left" />
       </div>
 
-      {/* Spine */}
+      {/* Right page */}
+      <div
+        style={{
+          position: "absolute",
+          right: 28,
+          top: 28,
+          bottom: 34,
+          width: "44%",
+          transformOrigin: "left center",
+          transform: "rotateY(-9deg) translateZ(4px)",
+          transformStyle: "preserve-3d",
+        }}
+      >
+        <PageCard side="right" />
+      </div>
+
+      {/* Spine valley */}
       <div
         style={{
           position: "absolute",
           left: "50%",
-          top: 0,
-          bottom: 0,
+          top: 26,
+          bottom: 32,
           width: 18,
           marginLeft: -9,
+          borderRadius: 9,
           background:
-            "linear-gradient(90deg, #0A0A0A, #4F8F2E 28%, #68B848 50%, #006088 72%, #0A0A0A)",
-          borderRadius: 2,
-          transform: "translateZ(6px)",
-          boxShadow: "inset 0 0 0 1px rgba(255,255,255,0.1)",
-          zIndex: 3,
+            "linear-gradient(90deg, rgba(13,26,46,0.12), rgba(13,26,46,0.02) 45%, rgba(13,26,46,0.02) 55%, rgba(13,26,46,0.12))",
+          transform: "translateZ(8px)",
+          pointerEvents: "none",
         }}
       />
 
-      {/* Left cover */}
-      <Cover side="left" rotateY={leftRot} />
-      {/* Right cover */}
-      <Cover side="right" rotateY={rightRot} />
-
-      {/* Ribbon */}
+      {/* Brand ribbon */}
       <div
         style={{
           position: "absolute",
           left: "50%",
-          top: 8,
+          top: 40,
           width: 8,
-          height: 200,
+          height: 150,
           marginLeft: -4,
-          background: "linear-gradient(180deg, #88C868, #4F8F2E)",
+          background: "linear-gradient(180deg, #8FD06A, #68B848 60%, #4F8F2E)",
           clipPath: "polygon(0 0, 100% 0, 100% 90%, 50% 100%, 0 90%)",
-          transform: "translateZ(10px)",
-          zIndex: 4,
+          boxShadow: "1px 6px 12px rgba(13,26,46,0.16)",
+          transform: "translateZ(16px)",
         }}
       />
-    </div>
+    </motion.div>
   );
 }
 
-function Cover({
-  side,
-  rotateY,
-}: {
-  side: "left" | "right";
-  rotateY: MotionValue<number>;
-}) {
+function PageCard({ side }: { side: "left" | "right" }) {
   const isLeft = side === "left";
   return (
-    <motion.div
+    <div
       style={{
         position: "absolute",
-        top: 0,
-        bottom: 0,
-        width: "50%",
-        ...(isLeft ? { left: 0 } : { right: 0 }),
-        transformOrigin: isLeft ? "right center" : "left center",
-        transformStyle: "preserve-3d",
-        rotateY,
-        zIndex: 2,
+        inset: 0,
+        background: PAGE_CREAM,
+        borderRadius: isLeft ? "6px 2px 2px 6px" : "2px 6px 6px 2px",
+        boxShadow: isLeft
+          ? "6px 14px 28px -14px rgba(13,26,46,0.35), inset -10px 0 18px rgba(13,26,46,0.04)"
+          : "-6px 14px 28px -14px rgba(13,26,46,0.35), inset 10px 0 18px rgba(13,26,46,0.04)",
+        overflow: "hidden",
       }}
     >
+      {/* Paper grain */}
       <div
         style={{
           position: "absolute",
           inset: 0,
-          background: BLUE,
-          borderRadius: isLeft ? "10px 1px 1px 10px" : "1px 10px 10px 1px",
-          boxShadow:
-            "0 24px 40px -20px rgba(13,26,46,0.45), inset 0 1px 0 rgba(255,255,255,0.16)",
+          opacity: 0.55,
+          backgroundImage:
+            "radial-gradient(circle at 1px 1px, rgba(13,26,46,0.04) 0.7px, transparent 1px)",
+          backgroundSize: "5px 5px",
         }}
       />
-      {/* thickness */}
+
+      {/* Margin */}
+      <div
+        style={{
+          position: "absolute",
+          top: 44,
+          bottom: 28,
+          width: 1,
+          ...(isLeft ? { left: 48 } : { right: 48 }),
+          background: PAGE_MARGIN,
+        }}
+      />
+
+      {/* Eco header rule */}
+      <div
+        style={{
+          position: "absolute",
+          top: 40,
+          height: 2,
+          borderRadius: 1,
+          ...(isLeft ? { left: 22, right: 18 } : { left: 18, right: 22 }),
+          background: ECO_RULE,
+        }}
+      />
+
+      {/* Ruled lines */}
+      <div
+        style={{
+          position: "absolute",
+          top: 50,
+          bottom: 26,
+          ...(isLeft ? { left: 22, right: 18 } : { left: 18, right: 22 }),
+          backgroundImage: `repeating-linear-gradient(0deg, transparent 0 18px, ${PAGE_RULE} 18px 19px)`,
+        }}
+      />
+
+      {/* Cover lip peeking at outer edge */}
       <div
         style={{
           position: "absolute",
           top: 0,
           bottom: 0,
-          width: 10,
+          width: 5,
           ...(isLeft ? { left: 0 } : { right: 0 }),
-          background: "#006088",
-          transformOrigin: isLeft ? "left center" : "right center",
-          transform: isLeft
-            ? "rotateY(-90deg) translateX(-10px)"
-            : "rotateY(90deg) translateX(10px)",
+          background: `linear-gradient(180deg, ${COVER_DEEP}, ${COVER_BLUE})`,
         }}
       />
-      {/* foil */}
-      <div
-        style={{
-          position: "absolute",
-          top: 28,
-          bottom: 28,
-          width: 2,
-          ...(isLeft ? { right: 14 } : { left: 14 }),
-          background: "rgba(255,255,255,0.3)",
-          transform: "translateZ(1px)",
-        }}
-      />
-    </motion.div>
+    </div>
   );
 }
 

@@ -67,10 +67,10 @@ function Logo({
 }) {
   const sizeClass =
     size === "hero"
-      ? "h-16 w-auto object-contain sm:h-20 md:h-24 lg:h-28"
+      ? "h-14 w-auto object-contain sm:h-[4.5rem] md:h-20"
       : size === "footer"
-        ? "h-12 w-auto object-contain md:h-14"
-        : "h-11 w-auto object-contain md:h-12";
+        ? "h-11 w-auto object-contain md:h-12"
+        : "h-10 w-auto object-contain md:h-11";
 
   return (
     <a
@@ -83,13 +83,13 @@ function Logo({
       aria-label="Alpine-eco Notebooks & Diaries — home"
     >
       <picture>
-        <source srcSet="/alpine-eco-logo.webp" type="image/webp" />
+        <source srcSet="/alpine-eco-logo.webp?v=3" type="image/webp" />
         <img
-          src="/alpine-eco-logo.png"
+          src="/alpine-eco-logo.png?v=3"
           alt="Alpine-eco Notebooks & Diaries"
           className={sizeClass}
-          width={579}
-          height={240}
+          width={1734}
+          height={696}
           decoding="async"
         />
       </picture>
