@@ -12,6 +12,38 @@ import { useEffect, type ReactNode } from "react";
 import appCss from "../styles.css?url";
 import { reportLovableError } from "../lib/lovable-error-reporting";
 
+const SITE_URL = "https://alpine-eco.co.za";
+const OG_IMAGE = `${SITE_URL}/og-image.png`;
+
+const localBusinessJsonLd = {
+  "@context": "https://schema.org",
+  "@type": "LocalBusiness",
+  name: "Alpine-eco Notebooks & Diaries",
+  description:
+    "Johannesburg printing and book-binding company. Notebooks, diaries and journals printed and bound in-house in Stafford.",
+  url: SITE_URL,
+  email: "info@alpine-eco.co.za",
+  telephone: "+27114930113",
+  image: OG_IMAGE,
+  address: {
+    "@type": "PostalAddress",
+    streetAddress: "22 Stevens Rd, Stafford",
+    addressLocality: "Johannesburg",
+    postalCode: "2197",
+    addressCountry: "ZA",
+  },
+  geo: {
+    "@type": "GeoCoordinates",
+    latitude: -26.2435,
+    longitude: 28.0345,
+  },
+  areaServed: {
+    "@type": "Country",
+    name: "South Africa",
+  },
+  priceRange: "$$",
+};
+
 function NotFoundComponent() {
   return (
     <div className="flex min-h-screen items-center justify-center bg-background px-4">
@@ -77,36 +109,53 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
     meta: [
       { charSet: "utf-8" },
       { name: "viewport", content: "width=device-width, initial-scale=1" },
-      { title: "Alpine-eco Notebooks & Diaries — Printing & Book-Binding" },
+      { title: "Alpine-eco Notebooks & Diaries — Printing & Book-Binding | Johannesburg" },
       {
         name: "description",
         content:
-          "Alpine-eco is a Johannesburg printing and book-binding company. Notebooks, diaries and journals printed and bound in-house in Stafford — from press to spine.",
+          "Alpine-eco is a Johannesburg printing and book-binding company based in Stafford. Notebooks, diaries and journals printed and bound in-house — from press to spine. Call 011 493 0113.",
       },
       { name: "author", content: "Alpine-eco" },
+      { name: "geo.region", content: "ZA-GP" },
+      { name: "geo.placename", content: "Johannesburg" },
       { property: "og:title", content: "Alpine-eco Notebooks & Diaries — Printing & Book-Binding" },
       {
         property: "og:description",
         content:
-          "Alpine-eco is a Johannesburg printing and book-binding company. Notebooks, diaries and journals printed and bound in-house in Stafford — from press to spine.",
+          "Johannesburg printing and book-binding. Notebooks, diaries and journals printed and bound in-house in Stafford — from press to spine.",
       },
       { property: "og:type", content: "website" },
+      { property: "og:url", content: SITE_URL },
+      { property: "og:image", content: OG_IMAGE },
+      { property: "og:image:width", content: "1200" },
+      { property: "og:image:height", content: "630" },
       { name: "twitter:card", content: "summary_large_image" },
       { name: "twitter:title", content: "Alpine-eco Notebooks & Diaries — Printing & Book-Binding" },
-      { name: "twitter:description", content: "Alpine-eco is a Johannesburg printing and book-binding company. Notebooks, diaries and journals printed and bound in-house in Stafford — from press to spine." },
-      { property: "og:image", content: "https://pub-bb2e103a32db4e198524a2e9ed8f35b4.r2.dev/89cd311e-a2f1-4e8a-be5d-48e235c0adba/id-preview-c452ebf5--222e37ca-f45c-4996-88c9-7a4f2409dc0f.lovable.app-1783936749291.png" },
-      { name: "twitter:image", content: "https://pub-bb2e103a32db4e198524a2e9ed8f35b4.r2.dev/89cd311e-a2f1-4e8a-be5d-48e235c0adba/id-preview-c452ebf5--222e37ca-f45c-4996-88c9-7a4f2409dc0f.lovable.app-1783936749291.png" },
+      {
+        name: "twitter:description",
+        content:
+          "Johannesburg printing and book-binding. Notebooks, diaries and journals printed and bound in-house in Stafford.",
+      },
+      { name: "twitter:image", content: OG_IMAGE },
     ],
     links: [
+      { rel: "stylesheet", href: appCss },
+      { rel: "icon", href: "/favicon.ico", sizes: "any" },
+      { rel: "icon", href: "/favicon-32.png", type: "image/png", sizes: "32x32" },
+      { rel: "apple-touch-icon", href: "/apple-touch-icon.png", sizes: "180x180" },
       {
-        rel: "stylesheet",
-        href: appCss,
+        rel: "preload",
+        href: "/fonts/cormorant-500.woff2",
+        as: "font",
+        type: "font/woff2",
+        crossOrigin: "anonymous",
       },
-      { rel: "preconnect", href: "https://fonts.googleapis.com" },
-      { rel: "preconnect", href: "https://fonts.gstatic.com", crossOrigin: "anonymous" },
       {
-        rel: "stylesheet",
-        href: "https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,500;0,600;1,500&family=Inter:wght@400;500&display=swap",
+        rel: "preload",
+        href: "/fonts/inter-400.woff2",
+        as: "font",
+        type: "font/woff2",
+        crossOrigin: "anonymous",
       },
     ],
   }),
@@ -121,6 +170,11 @@ function RootShell({ children }: { children: ReactNode }) {
     <html lang="en">
       <head>
         <HeadContent />
+        <script
+          type="application/ld+json"
+          // eslint-disable-next-line react/no-danger
+          dangerouslySetInnerHTML={{ __html: JSON.stringify(localBusinessJsonLd) }}
+        />
       </head>
       <body>
         {children}

@@ -1,5 +1,12 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { motion, useReducedMotion } from "framer-motion";
+import {
+  LazyMotion,
+  domAnimation,
+  m,
+  useReducedMotion,
+  useScroll,
+  useTransform,
+} from "framer-motion";
 import {
   lazy,
   Suspense,
@@ -39,14 +46,12 @@ function useDeferredMotionMode(): MotionMode {
       Boolean((navigator as Navigator & { connection?: { saveData?: boolean } }).connection?.saveData);
     const next: MotionMode = reduce || mobile || saveData ? "backdrop" : "full";
 
-    // Prefetch the motion chunk ASAP on desktop so scroll isn't waiting on idle
     if (next === "full") {
       void import("@/components/MotionLayer");
     }
 
     const start = () => setMode(next);
 
-    // Short delay only — long idle waits feel choppy after deploy
     if (next === "full" && typeof window.requestIdleCallback === "function") {
       const id = window.requestIdleCallback(start, { timeout: 280 });
       return () => window.cancelIdleCallback(id);
@@ -63,6 +68,24 @@ const scrollTo = (id: string) => {
   if (el) el.scrollIntoView({ behavior: "smooth", block: "start" });
 };
 
+function ColorBar({ className = "" }: { className?: string }) {
+  const colors = [
+    "#00AEEF",
+    "#EC008C",
+    "#FFF200",
+    "#231F20",
+    "#0078A8",
+    "#68B848",
+  ];
+  return (
+    <div className={`color-bar ${className}`} aria-hidden>
+      {colors.map((c) => (
+        <span key={c} style={{ background: c }} />
+      ))}
+    </div>
+  );
+}
+
 /** Official light-background logo mark. */
 function Logo({
   className = "",
@@ -71,12 +94,13 @@ function Logo({
   className?: string;
   size?: "nav" | "hero" | "footer";
 }) {
+  // Hero is clearly larger than nav, capped so it stays sharp
   const sizeClass =
     size === "hero"
-      ? "h-14 w-auto object-contain sm:h-[4.5rem] md:h-20"
+      ? "h-16 w-auto max-w-[300px] object-contain object-left md:h-20 md:max-w-[360px]"
       : size === "footer"
-        ? "h-11 w-auto object-contain md:h-12"
-        : "h-10 w-auto object-contain md:h-11";
+        ? "h-11 w-auto max-w-[220px] object-contain md:h-12"
+        : "h-10 w-auto max-w-[200px] object-contain md:h-11";
 
   return (
     <a
@@ -94,8 +118,8 @@ function Logo({
           src="/alpine-eco-logo.png?v=3"
           alt="Alpine-eco Notebooks & Diaries"
           className={sizeClass}
-          width={1734}
-          height={696}
+          width={360}
+          height={144}
           decoding="async"
         />
       </picture>
@@ -125,14 +149,18 @@ function Nav() {
           : "bg-transparent"
       }`}
     >
-      <div className="mx-auto flex max-w-7xl items-center justify-between px-6 py-3 lg:px-10">
-        <Logo />
+      <div className="mx-auto flex max-w-7xl items-center justify-between px-6 py-3 sm:px-8 lg:px-12">
+        <Logo
+          className={`transition-opacity duration-300 ${
+            scrolled ? "opacity-100" : "pointer-events-none opacity-0 md:opacity-0"
+          }`}
+        />
         <nav className="hidden items-center gap-8 md:flex">
           {links.map(([id, label]) => (
             <button
               key={id}
               onClick={() => scrollTo(id)}
-              className="text-[11px] font-medium uppercase tracking-[0.16em] text-[color:var(--color-ink-2)] transition-colors hover:text-[color:var(--color-royal)]"
+              className="text-[12px] font-medium uppercase tracking-[0.16em] text-[color:var(--color-ink-2)] transition-colors hover:text-[color:var(--color-royal)]"
             >
               {label}
             </button>
@@ -141,7 +169,7 @@ function Nav() {
         <button
           onClick={() => scrollTo("contact")}
           className="btn-primary hidden lg:inline-flex"
-          style={{ padding: "10px 20px" }}
+          style={{ padding: "12px 22px" }}
         >
           Get In Touch
         </button>
@@ -166,7 +194,35 @@ function useRevealVariants() {
 }
 
 function Eyebrow({ children }: { children: React.ReactNode }) {
-  return <div className="eyebrow">{children}</div>;
+  return (
+    <div className="eyebrow inline-flex items-center gap-2.5">
+      <span className="reg-cross" aria-hidden />
+      <span>{children}</span>
+    </div>
+  );
+}
+
+function RulerProgress() {
+  const reduce = useReducedMotion();
+  const { scrollYProgress } = useScroll();
+  const height = useTransform(scrollYProgress, [0, 1], ["0%", "100%"]);
+  if (reduce) return null;
+
+  return (
+    <div className="ruler-progress" aria-hidden>
+      <div
+        className="absolute inset-y-0 right-0 w-px"
+        style={{
+          background:
+            "repeating-linear-gradient(to bottom, rgba(0,120,168,0.35) 0 1px, transparent 1px 8px)",
+        }}
+      />
+      <m.div
+        className="absolute top-0 right-0 w-[3px] rounded-full bg-[color:var(--color-eco)]"
+        style={{ height, originY: 0 }}
+      />
+    </div>
+  );
 }
 
 function Hero({ sectionRef }: { sectionRef: RefObject<HTMLElement | null> }) {
@@ -175,7 +231,7 @@ function Hero({ sectionRef }: { sectionRef: RefObject<HTMLElement | null> }) {
     <section
       ref={sectionRef}
       id="hero"
-      className="relative overflow-hidden bg-transparent pt-40 pb-32 lg:pt-52 lg:pb-40"
+      className="crop-marks relative overflow-hidden bg-transparent pt-28 pb-24 lg:pt-32 lg:pb-28"
     >
       <div
         aria-hidden
@@ -187,41 +243,44 @@ function Hero({ sectionRef }: { sectionRef: RefObject<HTMLElement | null> }) {
           clipPath: "polygon(18% 0, 100% 0, 100% 100%, 4% 100%)",
         }}
       />
-      <div className="relative mx-auto grid max-w-7xl gap-12 px-6 lg:grid-cols-12 lg:px-10">
-        <motion.div
+      <div className="relative mx-auto grid max-w-7xl gap-12 px-6 sm:px-8 lg:grid-cols-12 lg:px-12">
+        <m.div
           initial="hidden"
           animate="show"
           variants={{ show: { transition: { staggerChildren: 0.06 } } }}
           className="lg:col-span-7"
         >
-          <motion.div variants={variants} className="flex flex-col items-start gap-5">
+          <m.div variants={variants} className="flex flex-col items-start gap-3">
             <Logo size="hero" />
             <Eyebrow>Alpine-eco · Printing &amp; Book-Binding</Eyebrow>
-          </motion.div>
-          <motion.h1
+          </m.div>
+          <m.h1
             variants={variants}
-            className="mt-6 font-serif text-[52px] leading-[1.05] tracking-tight text-[color:var(--color-ink)] md:text-[72px] lg:text-[88px]"
+            className="mt-5 font-serif text-[56px] leading-[1.05] tracking-tight text-[color:var(--color-ink)] md:text-[76px] lg:text-[92px]"
           >
             From the press to the{" "}
-            <span className="italic text-[color:var(--color-royal)]">spine.</span>
-          </motion.h1>
-          <motion.p
+            <span className="ink-accent italic text-[color:var(--color-royal)]">spine.</span>
+          </m.h1>
+          <m.p
             variants={variants}
-            className="mt-8 max-w-xl text-[17px] leading-relaxed text-[color:var(--color-body)]"
+            className="mt-8 max-w-xl text-[18px] leading-relaxed text-[color:var(--color-body)] md:text-[19px]"
           >
             Alpine-eco is a Johannesburg printing and book-binding company. We print,
             cut and bind notebooks, diaries and journals in-house — one roof, one
             standard of finish.
-          </motion.p>
-          <motion.div variants={variants} className="mt-10 flex flex-wrap gap-3">
+          </m.p>
+          <m.div variants={variants} className="mt-10 flex flex-wrap gap-3">
             <button onClick={() => scrollTo("print")} className="btn-primary">
               What We Print
             </button>
             <button onClick={() => scrollTo("story")} className="btn-ghost">
               Our Story
             </button>
-          </motion.div>
-        </motion.div>
+          </m.div>
+          <m.div variants={variants} className="mt-12">
+            <ColorBar />
+          </m.div>
+        </m.div>
       </div>
     </section>
   );
@@ -233,20 +292,22 @@ function Section({
   className = "",
   sectionRef,
   deferPaint = false,
+  withCrop = true,
 }: {
   id: string;
   children: ReactNode;
   className?: string;
   sectionRef?: RefObject<HTMLElement | null>;
   deferPaint?: boolean;
+  withCrop?: boolean;
 }) {
   return (
     <section
       ref={sectionRef}
       id={id}
-      className={`relative py-28 lg:py-36 ${deferPaint ? "cv-auto" : ""} ${className}`}
+      className={`relative py-32 lg:py-44 ${withCrop ? "crop-marks" : ""} ${deferPaint ? "cv-auto" : ""} ${className}`}
     >
-      <div className="mx-auto max-w-7xl px-6 lg:px-10">{children}</div>
+      <div className="mx-auto max-w-7xl px-6 sm:px-8 lg:px-12">{children}</div>
     </section>
   );
 }
@@ -256,8 +317,11 @@ function Story() {
   const reduce = useReducedMotion();
   return (
     <Section id="story" deferPaint>
+      <div className="mb-10">
+        <ColorBar className="max-w-[180px]" />
+      </div>
       <div className="grid gap-16 lg:grid-cols-12">
-        <motion.div
+        <m.div
           initial={reduce ? false : { opacity: 0, y: 8 }}
           whileInView={{ opacity: 1, y: 0 }}
           viewport={{ once: true, amount: 0.15 }}
@@ -265,36 +329,36 @@ function Story() {
           className="lg:col-span-5"
         >
           <Eyebrow>Our Story</Eyebrow>
-          <h2 className="mt-6 font-serif text-4xl leading-[1.1] tracking-tight md:text-5xl lg:text-[56px]">
+          <h2 className="mt-6 font-serif text-[40px] leading-[1.1] tracking-tight md:text-5xl lg:text-[60px]">
             A print shop and{" "}
-            <span className="italic text-[color:var(--color-royal)]">bindery</span>,
+            <span className="ink-accent italic text-[color:var(--color-royal)]">bindery</span>,
             under one roof.
           </h2>
-        </motion.div>
-        <motion.div
+        </m.div>
+        <m.div
           initial="hidden"
           whileInView="show"
           viewport={{ once: true, amount: 0.15 }}
           variants={{ show: { transition: { staggerChildren: reduce ? 0 : 0.06 } } }}
           className="lg:col-span-6 lg:col-start-7"
         >
-          <motion.p
+          <m.p
             variants={variants}
-            className="text-[17px] leading-relaxed text-[color:var(--color-body)]"
+            className="text-[18px] leading-relaxed text-[color:var(--color-body)] md:text-[19px]"
           >
             Based in Stafford, Johannesburg, Alpine-eco runs the press and the bindery
             ourselves. Notebooks, diaries and journals are printed, trimmed and bound
             on site — not assembled from outsourced parts.
-          </motion.p>
-          <motion.p
+          </m.p>
+          <m.p
             variants={variants}
-            className="mt-5 text-[17px] leading-relaxed text-[color:var(--color-body)]"
+            className="mt-5 text-[18px] leading-relaxed text-[color:var(--color-body)] md:text-[19px]"
           >
             That is the whole business: accurate colour, clean finishing, and binding
             that holds up to real use — for offices, schools, studios and private
             orders across South Africa.
-          </motion.p>
-          <motion.ul variants={variants} className="mt-10 space-y-4">
+          </m.p>
+          <m.ul variants={variants} className="mt-10 space-y-4">
             {[
               "Litho and digital printing, run in-house",
               "Binding and finishing completed under one roof",
@@ -302,14 +366,14 @@ function Story() {
             ].map((t) => (
               <li
                 key={t}
-                className="flex items-start gap-3 border-t border-[rgba(0,120,168,0.14)] pt-4 text-[15px] text-[color:var(--color-ink-2)]"
+                className="flex items-start gap-3 border-t border-[rgba(0,120,168,0.14)] pt-4 text-[16px] text-[color:var(--color-ink-2)]"
               >
-                <span className="mt-2 h-[6px] w-[6px] flex-none rounded-full bg-[color:var(--color-eco)]" />
+                <span className="reg-cross mt-1.5" aria-hidden />
                 <span>{t}</span>
               </li>
             ))}
-          </motion.ul>
-        </motion.div>
+          </m.ul>
+        </m.div>
       </div>
     </Section>
   );
@@ -338,55 +402,63 @@ function WhatWePrint() {
   const reduce = useReducedMotion();
   return (
     <Section id="print" deferPaint>
-      <motion.div
+      <m.div
         initial="hidden"
         whileInView="show"
         viewport={{ once: true, amount: 0.15 }}
         variants={{ show: { transition: { staggerChildren: reduce ? 0 : 0.05 } } }}
         className="max-w-3xl"
       >
-        <motion.div variants={variants}>
+        <m.div variants={variants}>
           <Eyebrow>What We Print</Eyebrow>
-        </motion.div>
-        <motion.h2
+        </m.div>
+        <m.h2
           variants={variants}
-          className="mt-6 font-serif text-4xl leading-[1.1] tracking-tight md:text-5xl lg:text-[56px]"
+          className="mt-6 font-serif text-[40px] leading-[1.1] tracking-tight md:text-5xl lg:text-[60px]"
         >
           Notebooks, diaries — printed and bound to order.
-        </motion.h2>
-        <motion.p
+        </m.h2>
+        <m.p
           variants={variants}
-          className="mt-6 max-w-2xl text-[17px] leading-relaxed text-[color:var(--color-body)]"
+          className="mt-6 max-w-2xl text-[18px] leading-relaxed text-[color:var(--color-body)]"
         >
           From a short personal run to a full office order, we manufacture paper goods
           across four areas — printed and bound in Johannesburg.
-        </motion.p>
-      </motion.div>
-      <motion.div
+        </m.p>
+      </m.div>
+      <m.div
         initial="hidden"
         whileInView="show"
         viewport={{ once: true, amount: 0.15 }}
         variants={{ show: { transition: { staggerChildren: reduce ? 0 : 0.05 } } }}
-        className="mt-16 grid gap-6 sm:grid-cols-2 lg:grid-cols-4"
+        className="mt-16 grid gap-5 sm:grid-cols-2 lg:grid-cols-4 lg:gap-6"
       >
-        {items.map(([title, desc]) => (
-          <motion.div
-            key={title}
-            variants={variants}
-            className="card-surface gradient-underline p-7 transition-transform duration-300 hover:-translate-y-1"
-          >
-            <div className="text-[11px] font-medium uppercase tracking-[0.16em] text-[color:var(--color-eco-deep)]">
-              Alpine-eco
+        {items.map(([title, desc], i) => (
+          <m.div key={title} variants={variants} className="notebook-card">
+            <div className="flex items-baseline justify-between gap-3">
+              <span className="font-serif text-[42px] leading-none tracking-tight text-[rgba(0,120,168,0.14)]">
+                {String(i + 1).padStart(2, "0")}
+              </span>
+              <span
+                aria-hidden
+                className="h-px flex-1 bg-[rgba(0,120,168,0.12)]"
+              />
             </div>
-            <h3 className="mt-6 font-serif text-[26px] leading-tight tracking-tight text-[color:var(--color-ink)]">
+            <h3 className="mt-8 font-serif text-[32px] leading-[1.1] tracking-tight text-[color:var(--color-ink)]">
               {title}
             </h3>
-            <p className="mt-4 text-[14px] leading-relaxed text-[color:var(--color-body)]">
+            <p className="mt-4 text-[15px] leading-relaxed text-[color:var(--color-body)] md:text-[16px]">
               {desc}
             </p>
-          </motion.div>
+            <div
+              aria-hidden
+              className="mt-auto pt-10 text-[11px] font-medium uppercase tracking-[0.18em] text-[color:var(--color-eco-deep)]"
+            >
+              In-house
+            </div>
+          </m.div>
         ))}
-      </motion.div>
+      </m.div>
     </Section>
   );
 }
@@ -419,6 +491,14 @@ function HowWeWork({
     ],
   ] as const;
   const reduce = useReducedMotion();
+  const lineRef = useRef<HTMLDivElement | null>(null);
+  const { scrollYProgress } = useScroll({
+    target: lineRef,
+    offset: ["start 80%", "end 40%"],
+  });
+  const markerLeft = useTransform(scrollYProgress, [0, 1], ["0%", "100%"]);
+  const fillWidth = useTransform(scrollYProgress, [0, 1], ["0%", "100%"]);
+
   return (
     <Section
       id="work"
@@ -426,8 +506,11 @@ function HowWeWork({
       sectionRef={sectionRef}
       deferPaint
     >
+      <div className="mb-10">
+        <ColorBar className="max-w-[180px]" />
+      </div>
       <div className="grid gap-16 lg:grid-cols-12">
-        <motion.div
+        <m.div
           initial={reduce ? false : { opacity: 0, y: 8 }}
           whileInView={{ opacity: 1, y: 0 }}
           viewport={{ once: true, amount: 0.15 }}
@@ -435,34 +518,49 @@ function HowWeWork({
           className="lg:col-span-5"
         >
           <Eyebrow>How We Work</Eyebrow>
-          <h2 className="mt-6 max-w-md font-serif text-4xl leading-[1.1] tracking-tight md:text-5xl lg:text-[56px]">
+          <h2 className="mt-6 max-w-md font-serif text-[40px] leading-[1.1] tracking-tight md:text-5xl lg:text-[60px]">
             From plates to pages, bound by hand.
           </h2>
-        </motion.div>
-        <motion.p
+        </m.div>
+        <m.p
           initial={reduce ? false : { opacity: 0, y: 8 }}
           whileInView={{ opacity: 1, y: 0 }}
           viewport={{ once: true, amount: 0.15 }}
           transition={{ duration: reduce ? 0 : 0.55, delay: reduce ? 0 : 0.08 }}
-          className="text-[17px] leading-relaxed text-[color:var(--color-body)] lg:col-span-6 lg:col-start-7"
+          className="text-[18px] leading-relaxed text-[color:var(--color-body)] lg:col-span-6 lg:col-start-7"
         >
           We are not a reseller of imported stock. Alpine-eco runs the press and the
           bindery — which means tighter quality control, clearer turnaround, and the
           flexibility to take on genuine custom work.
-        </motion.p>
+        </m.p>
       </div>
 
-      <div className="relative mt-20">
+      <div ref={lineRef} className="relative mt-20">
         <div
           aria-hidden
-          className="absolute left-0 right-0 top-6 hidden h-px lg:block"
+          className="absolute left-0 right-0 top-6 hidden h-px bg-[rgba(0,120,168,0.18)] lg:block"
+        />
+        <m.div
+          aria-hidden
+          className="absolute left-0 top-6 hidden h-px lg:block"
           style={{
+            width: fillWidth,
             background: "linear-gradient(90deg, var(--color-royal), var(--color-eco))",
+            willChange: "width",
           }}
         />
-        <div className="grid gap-10 sm:grid-cols-2 lg:grid-cols-4">
+        {!reduce && (
+          <m.div
+            aria-hidden
+            className="absolute top-[14px] hidden h-5 w-4 -translate-x-1/2 rounded-[1px] border border-[rgba(0,120,168,0.35)] bg-white shadow-sm lg:block"
+            style={{ left: markerLeft, willChange: "left" }}
+          >
+            <div className="mx-auto mt-1 h-2 w-[2px] bg-[color:var(--color-eco)]" />
+          </m.div>
+        )}
+        <div className="grid gap-12 sm:grid-cols-2 lg:grid-cols-4">
           {steps.map(([n, title, desc], i) => (
-            <motion.div
+            <m.div
               key={n}
               initial={reduce ? false : { opacity: 0, y: 12 }}
               whileInView={{ opacity: 1, y: 0 }}
@@ -472,19 +570,18 @@ function HowWeWork({
             >
               <div
                 aria-hidden
-                className="mx-auto mb-6 hidden h-3 w-3 rounded-full border border-[rgba(0,120,168,0.4)] bg-white lg:block"
-                style={{ marginLeft: 0 }}
+                className="mb-6 hidden h-3 w-3 rounded-full border border-[rgba(0,120,168,0.4)] bg-white lg:block"
               />
-              <div className="text-[11px] font-medium uppercase tracking-[0.16em] text-[color:var(--color-royal)]">
+              <div className="text-[12px] font-medium uppercase tracking-[0.16em] text-[color:var(--color-royal)]">
                 {n}
               </div>
-              <h3 className="mt-3 font-serif text-[26px] leading-tight tracking-tight text-[color:var(--color-ink)]">
+              <h3 className="mt-3 font-serif text-[28px] leading-tight tracking-tight text-[color:var(--color-ink)]">
                 {title}
               </h3>
-              <p className="mt-3 text-[14px] leading-relaxed text-[color:var(--color-body)]">
+              <p className="mt-3 text-[15px] leading-relaxed text-[color:var(--color-body)] md:text-[16px]">
                 {desc}
               </p>
-            </motion.div>
+            </m.div>
           ))}
         </div>
       </div>
@@ -497,63 +594,67 @@ function CTA() {
   const reduce = useReducedMotion();
   return (
     <Section id="contact" deferPaint>
-      <motion.div
+      <m.div
         initial="hidden"
         whileInView="show"
         viewport={{ once: true, amount: 0.15 }}
         variants={{ show: { transition: { staggerChildren: reduce ? 0 : 0.06 } } }}
         className="mx-auto max-w-3xl text-center"
       >
-        <motion.div variants={variants}>
+        <m.div variants={variants} className="flex justify-center">
           <Eyebrow>Get In Touch</Eyebrow>
-        </motion.div>
-        <motion.h2
+        </m.div>
+        <m.h2
           variants={variants}
-          className="mt-6 font-serif text-4xl leading-[1.1] tracking-tight md:text-5xl lg:text-[64px]"
+          className="mt-6 font-serif text-[40px] leading-[1.1] tracking-tight md:text-5xl lg:text-[68px]"
         >
           Got a print or binding{" "}
-          <span className="italic text-[color:var(--color-royal)]">job</span> in mind?
-        </motion.h2>
-        <motion.p
+          <span className="ink-accent italic text-[color:var(--color-royal)]">job</span> in mind?
+        </m.h2>
+        <m.p
           variants={variants}
-          className="mt-6 text-[17px] leading-relaxed text-[color:var(--color-body)]"
+          className="mt-6 text-[18px] leading-relaxed text-[color:var(--color-body)]"
         >
           Enquire for bulk orders, corporate runs or a custom print and binding quote.
           We are based in Stafford, Johannesburg.
-        </motion.p>
-        <motion.div variants={variants} className="mt-10 flex flex-wrap justify-center gap-3">
+        </m.p>
+        <m.div variants={variants} className="mt-10 flex flex-wrap justify-center gap-3">
           <a href={`mailto:${EMAIL}`} className="btn-primary">
             Email Alpine-eco
           </a>
           <a href={`tel:${PHONE_TEL}`} className="btn-ghost">
             Call {PHONE_DISPLAY}
           </a>
-        </motion.div>
-        <motion.p
+        </m.div>
+        <m.p
           variants={variants}
-          className="mt-8 text-[13px] leading-relaxed text-[color:var(--color-body)]"
+          className="mt-8 text-[14px] leading-relaxed text-[color:var(--color-body)]"
         >
           {ADDRESS}
-        </motion.p>
-      </motion.div>
+        </m.p>
+        <m.div variants={variants} className="mt-10 flex justify-center">
+          <ColorBar className="max-w-[220px]" />
+        </m.div>
+      </m.div>
     </Section>
   );
 }
 
 function Footer() {
+  const year = new Date().getFullYear();
   return (
-    <footer className="cv-auto border-t border-[rgba(0,120,168,0.14)] bg-white/70 py-16">
-      <div className="mx-auto grid max-w-7xl gap-12 px-6 lg:grid-cols-12 lg:px-10">
+    <footer className="cv-auto border-t border-[rgba(0,120,168,0.14)] bg-white/70 py-20">
+      <div className="mx-auto grid max-w-7xl gap-12 px-6 sm:px-8 lg:grid-cols-12 lg:px-12">
         <div className="lg:col-span-5">
           <Logo size="footer" />
-          <p className="mt-5 max-w-sm text-[14px] leading-relaxed text-[color:var(--color-body)]">
+          <p className="mt-5 max-w-sm text-[15px] leading-relaxed text-[color:var(--color-body)] md:text-[16px]">
             A Johannesburg printing and book-binding company — notebooks, diaries and
             journals manufactured in-house, from press to spine.
           </p>
         </div>
         <div className="lg:col-span-3 lg:col-start-7">
           <div className="eyebrow">Explore</div>
-          <ul className="mt-5 space-y-3 text-[14px] text-[color:var(--color-ink-2)]">
+          <ul className="mt-5 space-y-3 text-[15px] text-[color:var(--color-ink-2)] md:text-[16px]">
             {[
               ["story", "Story"],
               ["print", "What We Print"],
@@ -573,7 +674,7 @@ function Footer() {
         </div>
         <div className="lg:col-span-3">
           <div className="eyebrow">Contact</div>
-          <ul className="mt-5 space-y-3 text-[14px] text-[color:var(--color-ink-2)]">
+          <ul className="mt-5 space-y-3 text-[15px] text-[color:var(--color-ink-2)] md:text-[16px]">
             <li>
               <a
                 href={`mailto:${EMAIL}`}
@@ -594,9 +695,11 @@ function Footer() {
           </ul>
         </div>
       </div>
-      <div className="mx-auto mt-12 flex max-w-7xl flex-col items-start justify-between gap-3 border-t border-[rgba(0,120,168,0.10)] px-6 pt-6 text-[12px] text-[color:var(--color-body)] sm:flex-row sm:items-center lg:px-10">
-        <div>© {new Date().getFullYear()} Alpine-eco Notebooks &amp; Diaries</div>
-        <div>Made in South Africa</div>
+      <div className="mx-auto mt-14 max-w-7xl border-t border-[rgba(0,120,168,0.10)] px-6 pt-8 sm:px-8 lg:px-12">
+        <p className="text-[13px] leading-relaxed tracking-wide text-[color:var(--color-body)]">
+          Set in Cormorant Garamond &amp; Inter · Printed &amp; bound in Johannesburg · ©{" "}
+          {year} Alpine-eco Notebooks &amp; Diaries
+        </p>
       </div>
     </footer>
   );
@@ -609,7 +712,7 @@ function Index() {
   const motionMode = useDeferredMotionMode();
 
   return (
-    <>
+    <LazyMotion features={domAnimation}>
       <Suspense fallback={null}>
         {motionMode === "full" ? (
           <LazyMotionLayer
@@ -622,6 +725,7 @@ function Index() {
         ) : null}
       </Suspense>
       <div className="relative z-20 isolate min-h-[100dvh] bg-transparent">
+        <RulerProgress />
         <Nav />
         <main>
           <Hero sectionRef={heroRef} />
@@ -634,6 +738,6 @@ function Index() {
         </main>
         <Footer />
       </div>
-    </>
+    </LazyMotion>
   );
 }
