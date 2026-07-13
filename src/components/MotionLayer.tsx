@@ -3,9 +3,11 @@ import {
   type ErrorInfo,
   type ReactNode,
   type RefObject,
+  useRef,
 } from "react";
 import {
   motion,
+  useMotionValueEvent,
   useReducedMotion,
   useScroll,
   useTransform,
@@ -36,7 +38,7 @@ export function MotionBackdrop() {
     <div
       aria-hidden
       className="pointer-events-none fixed inset-0 z-0 overflow-hidden"
-      style={{ contain: "strict" }}
+      style={{ contain: "paint" }}
     >
       <MotionBackdropLayers />
     </div>
@@ -85,9 +87,23 @@ class MotionErrorBoundary extends Component<
   }
 }
 
-function easeOut(t: number) {
-  const c = Math.min(1, Math.max(0, t));
-  return 1 - (1 - c) * (1 - c);
+/** Discrete show/hide — never animate opacity on preserve-3d trees (kills GPU smoothness). */
+function useSceneGate(
+  progress: MotionValue<number>,
+  range: { min?: number; max: number },
+  initial: "visible" | "hidden" = "hidden",
+) {
+  const ref = useRef<HTMLDivElement>(null);
+  const min = range.min ?? -Infinity;
+  const max = range.max;
+  useMotionValueEvent(progress, "change", (v) => {
+    const el = ref.current;
+    if (!el) return;
+    const show = v > min && v < max;
+    const next = show ? "visible" : "hidden";
+    if (el.style.visibility !== next) el.style.visibility = next;
+  });
+  return { ref, initial };
 }
 
 function MotionLayerInner({ heroRef, sheetsRef, workRef }: SectionRefs) {
@@ -106,59 +122,69 @@ function MotionLayerInner({ heroRef, sheetsRef, workRef }: SectionRefs) {
     offset: ["start end", "end start"],
   });
 
-  const bookOpacity = useTransform(heroProgress, [0, 0.6, 0.9, 1], [1, 1, 0.15, 0]);
-  const bookY = useTransform(heroProgress, [0, 1], [0, -36]);
-  const bookTiltY = useTransform(heroProgress, (v: number) =>
-    reduce ? -8 : -14 + easeOut(Math.min(1, v / 0.8)) * 10,
+  // Transform-only maps (no per-frame JS easing fns)
+  const bookY = useTransform(heroProgress, [0, 1], [0, reduce ? 0 : -36]);
+  const bookTiltY = useTransform(
+    heroProgress,
+    [0, 0.8, 1],
+    reduce ? [-8, -8, -8] : [-14, -6, -4],
   );
-  const bookTiltX = useTransform(heroProgress, (v: number) =>
-    reduce ? 10 : 12 - easeOut(Math.min(1, v / 0.8)) * 4,
-  );
-  const bookVisibility = useTransform(bookOpacity, (v) =>
-    v < 0.02 ? "hidden" : "visible",
+  const bookTiltX = useTransform(
+    heroProgress,
+    [0, 0.8, 1],
+    reduce ? [10, 10, 10] : [12, 10, 8],
   );
 
-  const sheetsOpacity = useTransform(
+  const sheetsY = useTransform(
     sheetsProgress,
-    [0.1, 0.24, 0.7, 0.86],
-    [0, 1, 1, 0],
+    [0.15, 0.85],
+    [reduce ? 0 : 36, reduce ? 0 : -56],
   );
-  const sheetsY = useTransform(sheetsProgress, [0.15, 0.85], [36, -56]);
-  const sheetsRot = useTransform(sheetsProgress, [0.15, 0.85], [4, -8]);
-  const sheetsVisibility = useTransform(sheetsOpacity, (v) =>
-    v < 0.02 ? "hidden" : "visible",
+  const sheetsRot = useTransform(
+    sheetsProgress,
+    [0.15, 0.85],
+    [reduce ? 0 : 4, reduce ? 0 : -8],
   );
 
-  const bindOpacity = useTransform(
+  const bindY = useTransform(
     workProgress,
-    [0.12, 0.3, 0.72, 0.9],
-    [0, 1, 1, 0],
+    [0.2, 0.85],
+    [reduce ? 0 : 28, reduce ? 0 : -36],
   );
-  const bindY = useTransform(workProgress, [0.2, 0.85], [28, -36]);
-  const bindRot = useTransform(workProgress, [0.2, 0.85], [-6, 10]);
-  const bindVisibility = useTransform(bindOpacity, (v) =>
-    v < 0.02 ? "hidden" : "visible",
+  const bindRot = useTransform(
+    workProgress,
+    [0.2, 0.85],
+    [reduce ? 0 : -6, reduce ? 0 : 10],
   );
+
+  const bookGate = useSceneGate(heroProgress, { max: 0.92 }, "visible");
+  const sheetsGate = useSceneGate(sheetsProgress, { min: 0.08, max: 0.9 });
+  const bindGate = useSceneGate(workProgress, { min: 0.1, max: 0.92 });
 
   return (
     <div
       aria-hidden
       className="pointer-events-none fixed inset-0 z-0 overflow-hidden"
-      style={{ contain: "strict" }}
+      style={{ contain: "paint" }}
     >
       <MotionBackdropLayers />
 
       <div
         className="absolute inset-0"
-        style={{ perspective: 1400, perspectiveOrigin: "70% 40%" }}
+        style={{
+          perspective: 1400,
+          perspectiveOrigin: "70% 40%",
+          transform: "translateZ(0)",
+        }}
       >
-        {/* BOOK — locked to the right half so it never covers hero copy */}
+        {/* BOOK — transform only (no opacity on 3D) */}
         <motion.div
+          ref={bookGate.ref}
           className="absolute top-[18vh] left-[52%] right-0 flex justify-center md:top-[14vh] lg:top-[12vh]"
           style={{
-            opacity: bookOpacity,
-            y: reduce ? 0 : bookY,
-            visibility: bookVisibility,
+            y: bookY,
+            visibility: bookGate.initial,
+            willChange: "transform",
           }}
         >
           <div className="origin-center scale-[0.68] sm:scale-[0.82] md:scale-[0.95] lg:scale-[1.08]">
@@ -166,35 +192,37 @@ function MotionLayerInner({ heroRef, sheetsRef, workRef }: SectionRefs) {
           </div>
         </motion.div>
 
-        {/* SHEETS — left side, bigger + clearer 3D paper */}
+        {/* SHEETS */}
         <motion.div
+          ref={sheetsGate.ref}
           className="absolute top-[10vh] left-[1vw] hidden w-[min(480px,46vw)] justify-start sm:flex md:left-[2vw] lg:left-[3vw]"
           style={{
-            opacity: sheetsOpacity,
-            y: reduce ? 0 : sheetsY,
-            visibility: sheetsVisibility,
+            y: sheetsY,
+            visibility: sheetsGate.initial,
+            willChange: "transform",
           }}
         >
           <div className="origin-center scale-[0.85] md:scale-[1] lg:scale-[1.15]">
             <PaperFan
               progress={sheetsProgress}
-              groupRot={reduce ? 0 : sheetsRot}
+              groupRot={sheetsRot}
               reduce={!!reduce}
             />
           </div>
         </motion.div>
 
-        {/* BINDING — far right, clear of "bound by hand" headline */}
+        {/* BINDING */}
         <motion.div
+          ref={bindGate.ref}
           className="absolute top-[8vh] right-[1vw] hidden w-[min(520px,48vw)] justify-end sm:flex md:right-[3vw] lg:right-[5vw]"
           style={{
-            opacity: bindOpacity,
-            y: reduce ? 0 : bindY,
-            visibility: bindVisibility,
+            y: bindY,
+            visibility: bindGate.initial,
+            willChange: "transform",
           }}
         >
           <div className="origin-center scale-[0.9] md:scale-[1.05] lg:scale-[1.2]">
-            <BookPile rotY={reduce ? 0 : bindRot} />
+            <BookPile rotY={bindRot} />
           </div>
         </motion.div>
       </div>
@@ -230,6 +258,8 @@ function Notebook({
         transformStyle: "preserve-3d",
         rotateX: tiltX,
         rotateY: tiltY,
+        willChange: "transform",
+        backfaceVisibility: "hidden",
       }}
     >
       {/* Ground shadow — no filter (keeps preserve-3d intact) */}
@@ -345,18 +375,6 @@ function PageCard({ side }: { side: "left" | "right" }) {
         overflow: "hidden",
       }}
     >
-      {/* Paper grain */}
-      <div
-        style={{
-          position: "absolute",
-          inset: 0,
-          opacity: 0.55,
-          backgroundImage:
-            "radial-gradient(circle at 1px 1px, rgba(13,26,46,0.04) 0.7px, transparent 1px)",
-          backgroundSize: "5px 5px",
-        }}
-      />
-
       {/* Margin */}
       <div
         style={{
@@ -415,7 +433,6 @@ const FAN = [
   { x: -10, y: 0, z: 0, rx: 8, ry: -16, rz: -11, spread: -48, tint: "#FBF8F0" },
   { x: 28, y: 28, z: 36, rx: -3, ry: 8, rz: 4, spread: 14, tint: "#FDFBF5" },
   { x: -4, y: 64, z: 72, rx: 5, ry: -6, rz: -5, spread: -28, tint: "#F7F3EA" },
-  { x: 40, y: 108, z: 110, rx: -2, ry: 12, rz: 10, spread: 52, tint: "#FDFBF5" },
 ] as const;
 
 function PaperFan({
@@ -435,6 +452,7 @@ function PaperFan({
         position: "relative",
         transformStyle: "preserve-3d",
         rotateY: groupRot,
+        willChange: "transform",
       }}
     >
       <div
@@ -445,19 +463,6 @@ function PaperFan({
           transform: "rotateX(22deg) rotateY(16deg)",
         }}
       >
-        {/* Ground contact */}
-        <div
-          style={{
-            position: "absolute",
-            left: 40,
-            top: 360,
-            width: 280,
-            height: 40,
-            background:
-              "radial-gradient(ellipse at center, rgba(13,26,46,0.18) 0%, transparent 70%)",
-            transform: "translateZ(-40px) rotateX(90deg)",
-          }}
-        />
         {FAN.map((s, i) => (
           <FanSheet key={i} index={i} base={s} progress={progress} reduce={reduce} />
         ))}
@@ -477,18 +482,12 @@ function FanSheet({
   progress: MotionValue<number>;
   reduce: boolean;
 }) {
-  const enter = 0.12 + index * 0.05;
-  const opacity = useTransform(
-    progress,
-    [enter, enter + 0.12, 0.68, 0.84],
-    [0, 1, 1, 0],
-  );
   const driftX = useTransform(progress, [0.18, 0.8], [0, reduce ? 0 : base.spread]);
   const driftZ = useTransform(progress, [0.18, 0.8], [0, reduce ? 0 : 18 + index * 8]);
   const driftRz = useTransform(
     progress,
     [0.18, 0.8],
-    [0, reduce ? 0 : (index % 2 === 0 ? 5 : -4)],
+    [0, reduce ? 0 : index % 2 === 0 ? 5 : -4],
   );
 
   const x = useTransform(driftX, (d) => base.x + d);
@@ -503,7 +502,6 @@ function FanSheet({
         top: 24,
         width: 260,
         height: 340,
-        opacity,
         x,
         y: base.y,
         z,
@@ -511,9 +509,10 @@ function FanSheet({
         rotateY: base.ry,
         rotateZ: rz,
         transformStyle: "preserve-3d",
+        willChange: "transform",
       }}
     >
-      {/* Paper face */}
+      {/* Paper face — keep paint light for scroll smoothness */}
       <div
         style={{
           position: "absolute",
@@ -521,24 +520,10 @@ function FanSheet({
           background: base.tint,
           border: "1px solid rgba(0,120,168,0.14)",
           borderRadius: 4,
-          boxShadow:
-            "0 28px 44px -18px rgba(13,26,46,0.42), inset 0 0 0 1px rgba(255,255,255,0.4)",
+          boxShadow: "0 18px 32px -16px rgba(13,26,46,0.35)",
           overflow: "hidden",
         }}
       >
-        {/* Paper grain */}
-        <div
-          style={{
-            position: "absolute",
-            inset: 0,
-            opacity: 0.45,
-            backgroundImage:
-              "radial-gradient(circle at 30% 40%, rgba(13,26,46,0.04) 0.6px, transparent 1px)",
-            backgroundSize: "5px 5px",
-            pointerEvents: "none",
-          }}
-        />
-
         {/* Left margin guide */}
         <div
           style={{
@@ -564,91 +549,19 @@ function FanSheet({
           }}
         />
 
-        {/* Ruled field */}
+        {/* Ruled lines */}
         <div
           style={{
             position: "absolute",
             left: 20,
             right: 18,
-            top: 52,
+            top: 46,
             bottom: 28,
             backgroundImage:
-              "repeating-linear-gradient(to bottom, transparent 0, transparent 19px, rgba(13,26,46,0.09) 19px, rgba(13,26,46,0.09) 20px)",
-          }}
-        />
-
-        {/* Hole punches */}
-        {[0, 1, 2].map((h) => (
-          <div
-            key={h}
-            style={{
-              position: "absolute",
-              left: 14,
-              top: 70 + h * 90,
-              width: 10,
-              height: 10,
-              borderRadius: "50%",
-              background: "rgba(13,26,46,0.06)",
-              boxShadow: "inset 0 1px 2px rgba(13,26,46,0.15)",
-            }}
-          />
-        ))}
-
-        {/* Folded corner */}
-        <div
-          style={{
-            position: "absolute",
-            right: 0,
-            bottom: 0,
-            width: 0,
-            height: 0,
-            borderStyle: "solid",
-            borderWidth: "0 0 28px 28px",
-            borderColor: "transparent transparent #E8E2D4 transparent",
-            filter: "drop-shadow(-1px -1px 1px rgba(13,26,46,0.08))",
-          }}
-        />
-        <div
-          style={{
-            position: "absolute",
-            right: 0,
-            bottom: 0,
-            width: 0,
-            height: 0,
-            borderStyle: "solid",
-            borderWidth: "28px 28px 0 0",
-            borderColor: "#F0EBE0 transparent transparent transparent",
-            opacity: 0.9,
+              "repeating-linear-gradient(0deg, transparent 0 17px, rgba(13,26,46,0.07) 17px 18px)",
           }}
         />
       </div>
-
-      {/* Paper thickness edge */}
-      <div
-        style={{
-          position: "absolute",
-          right: 0,
-          top: 2,
-          bottom: 2,
-          width: 8,
-          transformOrigin: "right center",
-          transform: "rotateY(90deg)",
-          background: "linear-gradient(90deg, #EDE6D6, #F7F3EA)",
-          boxShadow: "inset 0 0 0 1px rgba(13,26,46,0.06)",
-        }}
-      />
-      <div
-        style={{
-          position: "absolute",
-          left: 2,
-          right: 2,
-          bottom: 0,
-          height: 6,
-          transformOrigin: "bottom center",
-          transform: "rotateX(-90deg)",
-          background: "rgba(13,26,46,0.1)",
-        }}
-      />
     </motion.div>
   );
 }
@@ -698,6 +611,8 @@ function BookPile({ rotY }: { rotY: MotionValue<number> | number }) {
         position: "relative",
         transformStyle: "preserve-3d",
         rotateY: rotY,
+        willChange: "transform",
+        backfaceVisibility: "hidden",
       }}
     >
       <div

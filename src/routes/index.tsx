@@ -39,13 +39,19 @@ function useDeferredMotionMode(): MotionMode {
       Boolean((navigator as Navigator & { connection?: { saveData?: boolean } }).connection?.saveData);
     const next: MotionMode = reduce || mobile || saveData ? "backdrop" : "full";
 
+    // Prefetch the motion chunk ASAP on desktop so scroll isn't waiting on idle
+    if (next === "full") {
+      void import("@/components/MotionLayer");
+    }
+
     const start = () => setMode(next);
 
-    if (typeof window.requestIdleCallback === "function") {
-      const id = window.requestIdleCallback(start, { timeout: 1200 });
+    // Short delay only — long idle waits feel choppy after deploy
+    if (next === "full" && typeof window.requestIdleCallback === "function") {
+      const id = window.requestIdleCallback(start, { timeout: 280 });
       return () => window.cancelIdleCallback(id);
     }
-    const t = window.setTimeout(start, 200);
+    const t = window.setTimeout(start, next === "full" ? 32 : 120);
     return () => window.clearTimeout(t);
   }, []);
 
